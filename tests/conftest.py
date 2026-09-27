@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from agent_lens.storage import connect, init_db
+
 
 @pytest.fixture
 def write_jsonl(tmp_path: Path):
@@ -22,3 +24,12 @@ def write_jsonl(tmp_path: Path):
         return target
 
     return _write
+
+
+@pytest.fixture
+def lens_db(tmp_path: Path):
+    """建一个初始化好的临时数据库连接。"""
+    conn = connect(tmp_path / "lens.db")
+    init_db(conn)
+    yield conn
+    conn.close()

@@ -5,10 +5,37 @@
 
 from __future__ import annotations
 
+import json
 import re
+
+from pydantic import BaseModel, Field
+
+from .models import (
+    ApiCallRecord,
+    ItemCompletedRecord,
+    ParseError,
+    SessionMetaRecord,
+    TokenUsage,
+    ToolCallRecord,
+    ToolResultRecord,
+    TurnContextRecord,
+    TurnRecord,
+    to_utc,
+)
 
 EXIT_CODE_RE = re.compile(r"^Exit code:\s*(-?\d+)\s*$", re.MULTILINE)
 WALL_TIME_RE = re.compile(r"^Wall time:\s*([0-9.]+)\s*seconds", re.MULTILINE)
+
+TOOL_CALL_TYPES = {
+    "function_call": "function_call",
+    "custom_tool_call": "custom_tool_call",
+    "web_search_call": "web_search_call",
+    "tool_search_call": "tool_search_call",
+}
+
+TOOL_RESULT_TYPES = ("function_call_output", "custom_tool_call_output")
+
+RAW_PREVIEW_CHARS = 200
 
 
 def extract_exec_metadata(output_text: str) -> tuple[int | None, float | None]:
@@ -29,3 +56,201 @@ def derive_success(exit_code: int | None) -> bool | None:
     if exit_code is None:
         return None
     return exit_code == 0
+
+
+class LineParseResult(BaseModel):
+    """单行的解析结果。每次最多命中一个有意义的字段。"""
+
+    session_meta: SessionMetaRecord | None = None
+    turn_context: TurnContextRecord | None = None
+    api_call: ApiCallRecord | None = None
+    tool_call: ToolCallRecord | None = None
+    tool_result: ToolResultRecord | None = None
+    item_completed: ItemCompletedRecord | None = None
+    turn_completed: TurnRecord | None = None
+    turn_aborted: TurnRecord | None = None
+    event: dict | None = Field(default=None)
+    parse_error: ParseError | None = None
+
+    def is_empty(self) -> bool:
+        """除 event 与 parse_error 外没有任何结构化结果。"""
+        return all(
+            getattr(self, name) is None
+            for name in (
+                "session_meta",
+                "turn_context",
+                "api_call",
+                "tool_call",
+                "tool_result",
+                "item_completed",
+                "turn_completed",
+                "turn_aborted",
+            )
+        )
+
+
+def _parse_error(file_path: str, ordinal: int, reason: str, raw: str) -> LineParseResult:
+    return LineParseResult(
+        parse_error=ParseError(
+            file_path=file_path,
+            ordinal=ordinal,
+            reason=reason,
+            raw_preview=raw[:RAW_PREVIEW_CHARS],
+        )
+    )
+
+
+def _as_text(value: object) -> str:
+    """把可能是字符串或对象的值统一成字符串。"""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False)
+
+
+def parse_line(raw: str, file_path: str, ordinal: int) -> LineParseResult:
+    """解析一行 JSONL。任何异常都转成 ParseError，不向上抛出。"""
+    try:
+        row = json.loads(raw)
+    except json.JSONDecodeError:
+        return _parse_error(file_path, ordinal, "invalid_json", raw)
+
+    if not isinstance(row, dict):
+        return _parse_error(file_path, ordinal, "not_an_object", raw)
+
+    payload = row.get("payload")
+    if not isinstance(payload, dict):
+        return _parse_error(file_path, ordinal, "missing_payload", raw)
+
+    try:
+        return _dispatch(row.get("type"), payload, file_path, ordinal)
+    except Exception:
+        return _parse_error(file_path, ordinal, "invalid_shape", raw)
+
+
+def _dispatch(row_type: object, payload: dict, file_path: str, ordinal: int) -> LineParseResult:
+    if row_type == "session_meta":
+        base = payload.get("base_instructions")
+        text = base.get("text") if isinstance(base, dict) else None
+        timestamp = payload.get("timestamp")
+        return LineParseResult(
+            session_meta=SessionMetaRecord(
+                session_id=str(payload.get("session_id", "")),
+                cwd=payload.get("cwd"),
+                cli_version=payload.get("cli_version"),
+                model_provider=payload.get("model_provider"),
+                recorded_at=to_utc(timestamp) if timestamp else None,
+                base_instructions_chars=len(text) if isinstance(text, str) else 0,
+            )
+        )
+
+    if row_type == "turn_context":
+        mode = payload.get("collaboration_mode")
+        return LineParseResult(
+            turn_context=TurnContextRecord(
+                turn_id=payload.get("turn_id"),
+                model=payload.get("model"),
+                effort=payload.get("effort"),
+                cwd=payload.get("cwd"),
+                collaboration_mode=mode.get("mode") if isinstance(mode, dict) else None,
+            )
+        )
+
+    if row_type == "token_usage_record":
+        thread_usage = payload.get("thread_token_usage") or {}
+        turn_usage = payload.get("turn_token_usage") or {}
+        timestamp = payload.get("timestamp")
+        return LineParseResult(
+            api_call=ApiCallRecord(
+                file_path=file_path,
+                ordinal=ordinal,
+                session_id=payload.get("session_id"),
+                turn_id=payload.get("turn_id"),
+                response_id=payload.get("response_id"),
+                timestamp=to_utc(timestamp) if timestamp else None,
+                usage=TokenUsage.model_validate(payload.get("usage") or {}),
+                turn_input_tokens_cumulative=turn_usage.get("input_tokens"),
+                thread_input_tokens_cumulative=thread_usage.get("input_tokens"),
+            )
+        )
+
+    if row_type == "response_item":
+        return _dispatch_response_item(payload, file_path, ordinal)
+
+    if row_type == "event_msg":
+        return _dispatch_event(payload, file_path, ordinal)
+
+    return LineParseResult()
+
+
+def _dispatch_response_item(payload: dict, file_path: str, ordinal: int) -> LineParseResult:
+    item_type = payload.get("type")
+
+    if item_type in TOOL_CALL_TYPES:
+        arguments = payload.get("arguments")
+        if arguments is None:
+            arguments = payload.get("input")
+        return LineParseResult(
+            tool_call=ToolCallRecord(
+                file_path=file_path,
+                ordinal=ordinal,
+                call_id=payload.get("call_id"),
+                name=str(payload.get("name", "")),
+                kind=TOOL_CALL_TYPES[item_type],
+                arguments_raw=_as_text(arguments),
+            )
+        )
+
+    if item_type in TOOL_RESULT_TYPES:
+        output_text = _as_text(payload.get("output"))
+        exit_code, wall_time = extract_exec_metadata(output_text)
+        return LineParseResult(
+            tool_result=ToolResultRecord(
+                file_path=file_path,
+                ordinal=ordinal,
+                call_id=payload.get("call_id"),
+                output_text=output_text,
+                exit_code=exit_code,
+                wall_time_seconds=wall_time,
+                success=derive_success(exit_code),
+            )
+        )
+
+    return LineParseResult()
+
+
+def _dispatch_event(payload: dict, file_path: str, ordinal: int) -> LineParseResult:
+    event_type = payload.get("type")
+
+    if event_type == "item_completed":
+        item = payload.get("item")
+        item = item if isinstance(item, dict) else {}
+        return LineParseResult(
+            item_completed=ItemCompletedRecord(
+                file_path=file_path,
+                ordinal=ordinal,
+                item_type=str(item.get("type", "")),
+                started_at_ms=int(payload.get("started_at_ms", 0)),
+                completed_at_ms=int(payload.get("completed_at_ms", 0)),
+            )
+        )
+
+    if event_type == "task_complete":
+        return LineParseResult(
+            turn_completed=TurnRecord(
+                turn_id=str(payload.get("turn_id", "")),
+                duration_ms=payload.get("duration_ms"),
+            )
+        )
+
+    if event_type == "turn_aborted":
+        return LineParseResult(
+            turn_aborted=TurnRecord(
+                turn_id=str(payload.get("turn_id", "")),
+                duration_ms=payload.get("duration_ms"),
+                aborted_reason=payload.get("reason"),
+            )
+        )
+
+    return LineParseResult(event={"event_type": event_type, "payload": payload})

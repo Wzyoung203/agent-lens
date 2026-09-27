@@ -253,7 +253,7 @@ def write_parsed_session(
     整体在一个事务里，任何一步抛错都不会留下半份数据。
     """
     now_iso = to_iso(now or utc_now())
-    resolved_project = project or UNCLASSIFIED_PROJECT
+    resolved_project = project or resolve_project(conn, parsed.cwd)
     inserted: dict[str, int] = defaultdict(int)
     skipped: dict[str, int] = defaultdict(int)
 
@@ -459,3 +459,78 @@ def update_ingest_state(
             f"UPDATE ingest_state SET {', '.join(assignments)} WHERE file_path = ?",
             params,
         )
+
+
+def assign_project(
+    conn: sqlite3.Connection,
+    path_prefix: str,
+    project: str,
+    *,
+    now: datetime | None = None,
+) -> None:
+    """注册一条手动映射：路径前缀 -> 项目名（设计文档 9.2 节优先级最高）。"""
+    now_iso = to_iso(now or utc_now())
+    with conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO projects (name, created_at) VALUES (?, ?)",
+            (project, now_iso),
+        )
+        conn.execute(
+            """
+            INSERT INTO project_paths (path_prefix, project_name, created_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(path_prefix) DO UPDATE SET project_name = excluded.project_name
+            """,
+            (path_prefix, project, now_iso),
+        )
+
+
+def resolve_project(
+    conn: sqlite3.Connection,
+    cwd: str | None,
+    *,
+    fallback: str = UNCLASSIFIED_PROJECT,
+) -> str:
+    """按最长前缀匹配决定项目归属，命不中返回 fallback。
+
+    用 substr 比较而不是 LIKE，避免 cwd 里的 % 和 _ 被当成通配符。
+    v1 大小写敏感；Windows 路径归一化由 P1.3 采集器负责。
+    """
+    if not cwd:
+        return fallback
+    row = conn.execute(
+        """
+        SELECT project_name
+        FROM project_paths
+        WHERE substr(?, 1, LENGTH(path_prefix)) = path_prefix
+        ORDER BY LENGTH(path_prefix) DESC
+        LIMIT 1
+        """,
+        (cwd,),
+    ).fetchone()
+    return row["project_name"] if row else fallback
+
+
+def refresh_session_projects(
+    conn: sqlite3.Connection,
+    *,
+    now: datetime | None = None,
+) -> int:
+    """按当前手动映射重算所有会话的项目归属，返回被改动的会话数。
+
+    设置页改完映射后调用（设计文档 9.2 节的「一键指派」）。
+    """
+    now_iso = to_iso(now or utc_now())
+    rows = conn.execute("SELECT session_id, cwd, project FROM sessions").fetchall()
+    changed: list[tuple[str, str, str]] = []
+    for row in rows:
+        project = resolve_project(conn, row["cwd"])
+        if project != row["project"]:
+            changed.append((project, now_iso, row["session_id"]))
+    if changed:
+        with conn:
+            conn.executemany(
+                "UPDATE sessions SET project = ?, updated_at = ? WHERE session_id = ?",
+                changed,
+            )
+    return len(changed)

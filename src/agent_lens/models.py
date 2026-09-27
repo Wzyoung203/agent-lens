@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -14,10 +14,10 @@ from pydantic import BaseModel, Field, model_validator
 
 def to_utc(timestamp: str) -> datetime:
     """把 ISO 8601 字符串归一化为 UTC aware datetime。"""
-    return datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone(timezone.utc)
+    return datetime.fromisoformat(timestamp).astimezone(UTC)
 
 
-def epoch_to_utc(value: int | float | None) -> datetime | None:
+def epoch_to_utc(value: float | None) -> datetime | None:
     """把 Unix 秒级时间戳归一化为 UTC aware datetime。
 
     codex 的 task_started / task_complete 用秒级 epoch 记录轮次起止时间；
@@ -26,7 +26,7 @@ def epoch_to_utc(value: int | float | None) -> datetime | None:
     if not isinstance(value, int | float):
         return None
     try:
-        return datetime.fromtimestamp(float(value), tz=timezone.utc)
+        return datetime.fromtimestamp(float(value), tz=UTC)
     except (OverflowError, OSError, ValueError):
         return None
 

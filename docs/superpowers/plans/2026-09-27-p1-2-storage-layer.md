@@ -1976,6 +1976,18 @@ git commit -m "test: replay a real session through storage end to end"
 - `TokenUsage.uncached_input_tokens` 来自 P1.1 的派生属性，成本公式用它而不是重复做减法。
 - `IngestState.last_ordinal` 的默认值 `-1` 与 `write_parsed_session` 在空文件上的 `_max_ordinal` 返回值一致。
 
+### 执行后的清理（2026-09-27）
+
+P1.2 执行完成后单独做了一次 ruff 清理（用户要求，不属于原计划步骤）。代码与上文的内联代码块有以下差异，
+行为不变，清理前后均为 67 passed：
+
+- `from datetime import UTC` 取代 `timezone.utc`（UP017 ×5，涉及 models / pricing / storage 与测试）
+- `to_utc` 去掉多余的 `replace("Z", "+00:00")`（FURB162；Python ≥3.11 的 `fromisoformat` 原生接受 `Z`，
+  既有测试 `test_to_utc_normalizes_z_suffix_to_utc` 正好覆盖这条）
+- `epoch_to_utc` 的参数注解收敛为 `float | None`（PYI041；函数体仍用 `isinstance(value, int | float)` 做运行时判断）
+- `parse_line` 里刻意的裸 `except Exception` 加 `# noqa: BLE001` 并注明理由（单行解析失败一律降级成 ParseError，
+  不让一行坏数据中断整个文件）
+
 ## Execution Handoff
 
 计划已保存到 `docs/superpowers/plans/2026-09-27-p1-2-storage-layer.md`。两种执行方式：

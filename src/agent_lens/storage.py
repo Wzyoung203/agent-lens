@@ -14,7 +14,7 @@ import json
 import os
 import sqlite3
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -52,12 +52,12 @@ WRITE_TABLES = (
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def to_iso(value: datetime) -> str:
     """统一成 UTC ISO8601 文本，保证字典序等于时间序。"""
-    return value.astimezone(timezone.utc).isoformat()
+    return value.astimezone(UTC).isoformat()
 
 
 def resolve_db_path(db_path: str | Path | None = None) -> Path:

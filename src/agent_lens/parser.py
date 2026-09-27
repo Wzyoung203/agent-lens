@@ -134,7 +134,7 @@ def parse_line(raw: str, file_path: str, ordinal: int) -> LineParseResult:
 
     try:
         return _dispatch(row.get("type"), payload, file_path, ordinal)
-    except Exception:
+    except Exception:  # noqa: BLE001 — 单行解析失败一律降级成 ParseError，不让一行坏数据中断整个文件
         return _parse_error(file_path, ordinal, "invalid_shape", raw)
 
 

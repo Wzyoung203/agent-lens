@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel
 
@@ -44,7 +44,7 @@ class CostSummary(BaseModel):
 
 
 def to_iso(value: datetime) -> str:
-    return value.astimezone(timezone.utc).isoformat()
+    return value.astimezone(UTC).isoformat()
 
 
 def estimate_cost(usage: TokenUsage, price: PriceEntry) -> float:
@@ -143,7 +143,7 @@ def price_at(
 
     at 为空表示「按当前价目表」，即以 now（默认系统当前时间）为基准。
     """
-    moment = at or now or datetime.now(timezone.utc)
+    moment = at or now or datetime.now(UTC)
     row = conn.execute(
         """
         SELECT * FROM pricing

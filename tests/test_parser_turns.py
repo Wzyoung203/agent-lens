@@ -1,9 +1,7 @@
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from agent_lens.parser import parse_line
-
-UTC = timezone.utc
 
 
 def test_task_complete_fills_turn_window():

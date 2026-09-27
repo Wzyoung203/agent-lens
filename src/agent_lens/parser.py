@@ -23,6 +23,7 @@ from .models import (
     ToolResultRecord,
     TurnContextRecord,
     TurnRecord,
+    VerificationResult,
     to_utc,
 )
 
@@ -346,3 +347,20 @@ def parse_session_file(path: Path) -> ParsedSession:
             continue
         _merge(parsed, parse_line(raw, file_path, line_number))
     return parsed
+
+
+def verify_thread_totals(parsed: ParsedSession) -> VerificationResult:
+    """校验 Σ usage.input_tokens 是否等于文件内最后一条累计值。
+
+    这是设计文档 4.2 节的回归测试。等价关系只在单个文件内成立：
+    thread_token_usage 会跨文件重置，跨文件的会话必须按文件分别求和再相加。
+    """
+    summed = parsed.total_input_tokens
+    last = parsed.last_thread_input_tokens
+    return VerificationResult(
+        file_path=parsed.file_path,
+        session_id=parsed.session_id,
+        summed_input_tokens=summed,
+        last_thread_input_tokens=last,
+        matches=(summed == 0) if last is None else (last == summed),
+    )

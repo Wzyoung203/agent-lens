@@ -199,3 +199,13 @@ class ParsedSession(BaseModel):
             if call.thread_input_tokens_cumulative is not None:
                 return call.thread_input_tokens_cumulative
         return None
+
+
+class VerificationResult(BaseModel):
+    """累计字段自检结果，用于回归测试与数据质量告警。"""
+
+    file_path: str
+    session_id: str
+    summed_input_tokens: int
+    last_thread_input_tokens: int | None
+    matches: bool

@@ -384,7 +384,7 @@ def derive_success(exit_code: int | None) -> bool | None:
 
 Run: `uv run pytest tests/test_parser_metadata.py -v`
 
-Expected: PASS，7 passed
+Expected: PASS，10 passed（5 组参数化 + 1 + 4 组参数化）
 
 - [ ] **Step 5: 提交**
 
@@ -969,7 +969,7 @@ def _dispatch_event(payload: dict, file_path: str, ordinal: int) -> LineParseRes
 
 Run: `uv run pytest tests/test_parser_line.py -v`
 
-Expected: PASS，11 passed
+Expected: PASS，10 passed
 
 - [ ] **Step 5: 提交**
 
@@ -1498,7 +1498,7 @@ Expected: FAIL，`FileNotFoundError`，fixture 尚不存在
 
 - [ ] **Step 3: 写 fixture 生成脚本**
 
-创建 `scripts/make_fixture.py`：
+创建 `scripts/make_fixture.py`（下面是初稿；脱敏规则已在执行中修正为白名单式，见本步骤末尾的「执行偏差」）：
 
 ```python
 """从真实 Codex 会话日志生成脱敏的测试 fixture。
@@ -1512,6 +1512,10 @@ Expected: FAIL，`FileNotFoundError`，fixture 尚不存在
   - function_call 的 arguments 截断到 120 字符
   - 工具输出的 output 只保留元数据行（Chunk ID / Wall time / Exit code / Output）
   - 密钥形态替换为 [REDACTED]
+
+⚠️ 初稿规则不完整：实测会漏掉 item.changes 里的文件内容、item.command、
+last_agent_message、developer_instructions 等嵌套正文。最终实现已改为白名单式，
+规则与源码见本步骤末尾的「执行偏差」。
 """
 
 from __future__ import annotations
@@ -1615,6 +1619,34 @@ if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
 ```
 
+**执行偏差（2026-09-27，P1.1 实际执行时发现并修正）**
+
+初稿的脱敏规则只覆盖 `arguments` / `output` / `message`，在真实会话上实测会漏掉下表中
+的内容。fixture 要进入公开仓库，因此这些字段必须处理：
+
+| 漏掉的字段路径 | 实际内容 |
+|---|---|
+| `payload.item.changes.<path>.content` / `.unified_diff` | 本机 `.zshenv` / `.zshrc` / `.zprofile` / `.config/zsh/path.zsh` 的完整内容与 diff |
+| `payload.item.stdout` / `aggregated_output` / `formatted_output` | 完整命令输出（本次样本中含邮箱地址） |
+| `payload.item.command[]` / `parsed_cmd[].cmd` | 真实执行的 shell 命令正文 |
+| `payload.item.raw_content[]` / `content[].text` | 命令输出的正文（最长 409 字符） |
+| `payload.last_agent_message` | agent 回复原文（最长 1465 字符） |
+| `collaboration_mode.settings.developer_instructions`、`state.host_skills.body` | 系统提示与 skill 正文 |
+| `cwd` / `runtime_workspace_roots` / 变更文件路径 | 119 处 `/Users/<用户名>/...` 绝对路径 |
+
+因此最终实现改为**白名单**：只保留解析器需要的字段（`ordinal`、`type`、`usage`、
+`turn_id`、`response_id`、`call_id`、`name`、`started_at_ms`、`completed_at_ms`、
+`duration_ms` 等），其余自由文本字段丢弃或替换为占位符；路径替换为 `/Users/[USER]`。
+
+脚本末尾另加 `assert_clean()` 闸门：生成结果中若仍出现用户绝对路径、邮箱或密钥形态，
+脚本直接失败且不写文件——把 Step 5 的人工检查变成可重复执行的自动化检查。
+
+**权威实现以 `scripts/make_fixture.py` 为准，本节上面的初稿仅作历史记录。**
+
+同一份真实会话（173 行）的效果对比：fixture 200KB → 66KB；`sk-` / `ghp_` / `AKIA` /
+`Bearer` / 邮箱 / `/Users/<用户名>` / 盘符路径全部 0 命中；17 条 api_call、334089
+input token 与累加字段自检保持不变。
+
 - [ ] **Step 4: 生成 fixture 并跑测试**
 
 Run（换成一个真实的会话文件路径）：
@@ -1626,13 +1658,18 @@ uv run python scripts/make_fixture.py \
 uv run pytest tests/test_parser_real_fixture.py -v
 ```
 
+本次执行实际使用的样本：`~/.codex/sessions/2026/09/27/rollout-2026-09-27T02-15-55-01a0deee-4f94-7dc0-851e-1d3e1ef63f0c.jsonl`
+（173 行、17 条 token 记录、不含密钥形态）。
+
 Windows 下把 `$HOME` 换成 `$env:USERPROFILE`。
 
 Expected: PASS，3 passed
 
-- [ ] **Step 5: 人工检查 fixture 里没有敏感内容**
+- [ ] **Step 5: 人工检查 fixture 里没有敏感内容（自动闸门 + 人工确认）**
 
-打开 `tests/fixtures/real_session_sample.jsonl`，确认没有密钥、没有对话正文、没有业务代码内容，且 `token_usage_record` 的数值字段完好。
+生成时脚本会自动执行 `assert_clean()` 闸门；随后再打开
+`tests/fixtures/real_session_sample.jsonl` 确认：没有密钥、没有对话正文、没有本机文件内容与
+shell 命令正文、没有用户绝对路径，且 `token_usage_record` 的数值字段完好。
 
 这一步不能跳过：fixture 会进入公开仓库。
 
@@ -1662,7 +1699,7 @@ git commit -m "test: add redacted real-session fixture and parser regression tes
 | 6.3 核心表的字段来源 | Task 4、Task 5 |
 | 6.5 工具耗时与失败率的数据来源 | Task 3、Task 4 |
 | 6.9 模型与推理强度 | Task 4 的 `turn_context` |
-| 8 脱敏（fixture 层面） | Task 7 |
+| 8 脱敏（fixture 层面） | Task 7（白名单脱敏 + `assert_clean()` 闸门，见 Task 7「执行偏差」） |
 
 project 归属、pricing、SQLite 入库、Langfuse 上报、前端均不在本计划范围，分别属于 P1.2 到 P1.4。
 

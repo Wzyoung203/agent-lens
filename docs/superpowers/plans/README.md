@@ -9,7 +9,7 @@
 | 计划 | 目标 | 产出 | 依赖 |
 |---|---|---|---|
 | [P1.1](2026-09-25-p1-1-codex-log-parser.md) | 把 Codex 的 JSONL 解析成结构化对象 | `models.py` / `parser.py`，纯函数，零 IO | 无 |
-| P1.2 | 存储层：SQLite schema、幂等写入、水位表、成本计算 | `storage.py` / `schema.sql` / `pricing.py` | P1.1 的模型 |
+| [P1.2](2026-09-27-p1-2-storage-layer.md) | 存储层：SQLite schema、幂等写入、水位表、成本计算 | `storage.py` / `schema.sql` / `pricing.py` | P1.1 的模型 |
 | P1.3 | 采集守护进程：扫描、增量读、脱敏、队列、Langfuse 上报 | `collector.py` / `redact.py` / `reporter.py` | P1.2 的存储接口 |
 | P1.4 | 查询 API 与 Web 前端五页 | `api/` 后端 + `web/` 前端 | P1.2 的查询接口 |
 

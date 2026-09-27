@@ -161,3 +161,41 @@ class ParseError(BaseModel):
     ordinal: int
     reason: str
     raw_preview: str
+
+
+class ParsedSession(BaseModel):
+    """一个会话文件的完整解析结果。
+
+    一个 Codex 会话可能横跨多个文件（设计文档 4.3 节），因此本对象对应的是
+    「一个文件」，跨文件的会话合并由存储层负责。
+    """
+
+    session_id: str
+    file_path: str
+    cli_version: str | None = None
+    cwd: str | None = None
+    model_provider: str | None = None
+    base_instructions_chars: int = 0
+    recorded_at: datetime | None = None
+    turns: list[TurnRecord] = Field(default_factory=list)
+    turn_contexts: list[TurnContextRecord] = Field(default_factory=list)
+    api_calls: list[ApiCallRecord] = Field(default_factory=list)
+    tool_calls: list[ToolCallRecord] = Field(default_factory=list)
+    tool_results: list[ToolResultRecord] = Field(default_factory=list)
+    items: list[ItemCompletedRecord] = Field(default_factory=list)
+    events: list[dict] = Field(default_factory=list)
+    parse_errors: list[ParseError] = Field(default_factory=list)
+    partial_tail: str | None = None
+
+    @property
+    def total_input_tokens(self) -> int:
+        """总量一律对单次 usage 求和，绝不读取累计字段（设计文档 4.2 节）。"""
+        return sum(call.usage.input_tokens for call in self.api_calls)
+
+    @property
+    def last_thread_input_tokens(self) -> int | None:
+        """文件内最后一条非空累计值，只用于自检。"""
+        for call in reversed(self.api_calls):
+            if call.thread_input_tokens_cumulative is not None:
+                return call.thread_input_tokens_cumulative
+        return None

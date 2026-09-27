@@ -7,12 +7,15 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterator
+from pathlib import Path
 
 from pydantic import BaseModel, Field
 
 from .models import (
     ApiCallRecord,
     ItemCompletedRecord,
+    ParsedSession,
     ParseError,
     SessionMetaRecord,
     TokenUsage,
@@ -122,6 +125,8 @@ def parse_line(raw: str, file_path: str, ordinal: int) -> LineParseResult:
     payload = row.get("payload")
     if not isinstance(payload, dict):
         return _parse_error(file_path, ordinal, "missing_payload", raw)
+
+    ordinal = int(row.get("ordinal", ordinal))
 
     try:
         return _dispatch(row.get("type"), payload, file_path, ordinal)
@@ -254,3 +259,90 @@ def _dispatch_event(payload: dict, file_path: str, ordinal: int) -> LineParseRes
         )
 
     return LineParseResult(event={"event_type": event_type, "payload": payload})
+
+
+UUID_RE = re.compile(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})")
+
+
+def iter_jsonl(path: Path, start_offset: int = 0) -> Iterator[tuple[int, str]]:
+    """按行迭代 JSONL 文件，产出 (行号, 行文本)，行号从 1 开始。
+
+    errors="replace" 用于兜底：日志里可能混入非法编码字节，不应因此中断整个文件。
+    本函数是文本模式；带字节偏移的增量读取由 P1.3 的采集器负责。
+    """
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        if start_offset:
+            handle.seek(start_offset)
+        for line_number, raw in enumerate(handle, start=1):
+            yield line_number, raw.rstrip("\n")
+
+
+def _session_id_from_filename(path: Path) -> str:
+    """从文件名里取最后一个 UUID 作为会话 ID 的兜底。"""
+    matches = UUID_RE.findall(path.stem)
+    return matches[-1] if matches else path.stem
+
+
+def _upsert_turn(parsed: ParsedSession, turn: TurnRecord) -> None:
+    """按 turn_id 合并 task_complete 与 turn_aborted。"""
+    for existing in parsed.turns:
+        if existing.turn_id == turn.turn_id:
+            existing.started_at = turn.started_at or existing.started_at
+            existing.completed_at = turn.completed_at or existing.completed_at
+            existing.duration_ms = turn.duration_ms or existing.duration_ms
+            existing.aborted_reason = turn.aborted_reason or existing.aborted_reason
+            return
+    parsed.turns.append(turn)
+
+
+def _merge(parsed: ParsedSession, result: LineParseResult) -> None:
+    if result.session_meta is not None:
+        meta = result.session_meta
+        parsed.session_id = meta.session_id or parsed.session_id
+        parsed.cli_version = meta.cli_version
+        parsed.cwd = meta.cwd
+        parsed.model_provider = meta.model_provider
+        parsed.recorded_at = meta.recorded_at
+        parsed.base_instructions_chars = meta.base_instructions_chars
+    if result.turn_context is not None:
+        parsed.turn_contexts.append(result.turn_context)
+    if result.api_call is not None:
+        parsed.api_calls.append(result.api_call)
+    if result.tool_call is not None:
+        parsed.tool_calls.append(result.tool_call)
+    if result.tool_result is not None:
+        parsed.tool_results.append(result.tool_result)
+    if result.item_completed is not None:
+        parsed.items.append(result.item_completed)
+    for turn in (result.turn_completed, result.turn_aborted):
+        if turn is not None:
+            _upsert_turn(parsed, turn)
+    if result.event is not None:
+        parsed.events.append(result.event)
+    if result.parse_error is not None:
+        parsed.parse_errors.append(result.parse_error)
+
+
+def parse_session_file(path: Path) -> ParsedSession:
+    """解析一个会话文件。
+
+    容错策略：
+      单行损坏        -> 记入 parse_errors，继续解析
+      末尾半行        -> 存入 partial_tail，不计错误（补齐后重新解析）
+      缺 session_meta -> 会话 ID 回退为文件名里的 UUID
+    """
+    file_path = str(path)
+    parsed = ParsedSession(session_id=_session_id_from_filename(path), file_path=file_path)
+    lines = list(iter_jsonl(path))
+    if not lines:
+        return parsed
+
+    last_line_number = lines[-1][0]
+    for line_number, raw in lines:
+        if not raw.strip():
+            continue
+        if line_number == last_line_number and not raw.rstrip().endswith("}"):
+            parsed.partial_tail = raw
+            continue
+        _merge(parsed, parse_line(raw, file_path, line_number))
+    return parsed

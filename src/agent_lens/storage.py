@@ -385,3 +385,77 @@ def counts(conn: sqlite3.Connection) -> dict[str, int]:
         table: int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
         for table in COUNTS_TABLES
     }
+
+
+class IngestState(BaseModel):
+    """一个日志文件的读取水位。"""
+
+    file_path: str
+    session_id: str | None = None
+    cli_version: str | None = None
+    last_ordinal: int = -1
+    byte_offset: int = 0
+    file_size: int = 0
+    mtime: float = 0.0
+    parse_error_count: int = 0
+
+
+def get_ingest_state(conn: sqlite3.Connection, file_path: str) -> IngestState | None:
+    row = conn.execute("SELECT * FROM ingest_state WHERE file_path = ?", (file_path,)).fetchone()
+    if row is None:
+        return None
+    return IngestState(
+        file_path=row["file_path"],
+        session_id=row["session_id"],
+        cli_version=row["cli_version"],
+        last_ordinal=row["last_ordinal"],
+        byte_offset=row["byte_offset"],
+        file_size=row["file_size"],
+        mtime=row["mtime"],
+        parse_error_count=row["parse_error_count"],
+    )
+
+
+def update_ingest_state(
+    conn: sqlite3.Connection,
+    *,
+    file_path: str,
+    session_id: str | None = None,
+    cli_version: str | None = None,
+    last_ordinal: int | None = None,
+    byte_offset: int | None = None,
+    file_size: int | None = None,
+    mtime: float | None = None,
+    parse_error_count: int | None = None,
+    now: datetime | None = None,
+) -> None:
+    """更新一个文件的读取水位。未传入的参数保持原值。
+
+    last_ordinal 只增不减（水位语义）；其余字段按传入值覆盖。
+    P1.3 的增量采集器读取新内容后调用这个函数推进 offset。
+    """
+    now_iso = to_iso(now or utc_now())
+    values = {
+        "session_id": session_id,
+        "cli_version": cli_version,
+        "byte_offset": byte_offset,
+        "file_size": file_size,
+        "mtime": mtime,
+        "parse_error_count": parse_error_count,
+    }
+    with conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO ingest_state (file_path, updated_at) VALUES (?, ?)",
+            (file_path, now_iso),
+        )
+        assignments = [f"{column} = ?" for column, value in values.items() if value is not None]
+        params = [value for value in values.values() if value is not None]
+        if last_ordinal is not None:
+            assignments.append("last_ordinal = MAX(last_ordinal, ?)")
+            params.append(last_ordinal)
+        assignments.append("updated_at = ?")
+        params.extend([now_iso, file_path])
+        conn.execute(
+            f"UPDATE ingest_state SET {', '.join(assignments)} WHERE file_path = ?",
+            params,
+        )

@@ -24,6 +24,7 @@ from .models import (
     TurnContextRecord,
     TurnRecord,
     VerificationResult,
+    epoch_to_utc,
     to_utc,
 )
 
@@ -71,6 +72,7 @@ class LineParseResult(BaseModel):
     tool_call: ToolCallRecord | None = None
     tool_result: ToolResultRecord | None = None
     item_completed: ItemCompletedRecord | None = None
+    turn_started: TurnRecord | None = None
     turn_completed: TurnRecord | None = None
     turn_aborted: TurnRecord | None = None
     event: dict | None = Field(default=None)
@@ -87,6 +89,7 @@ class LineParseResult(BaseModel):
                 "tool_call",
                 "tool_result",
                 "item_completed",
+                "turn_started",
                 "turn_completed",
                 "turn_aborted",
             )
@@ -246,7 +249,17 @@ def _dispatch_event(payload: dict, file_path: str, ordinal: int) -> LineParseRes
         return LineParseResult(
             turn_completed=TurnRecord(
                 turn_id=str(payload.get("turn_id", "")),
+                started_at=epoch_to_utc(payload.get("started_at")),
+                completed_at=epoch_to_utc(payload.get("completed_at")),
                 duration_ms=payload.get("duration_ms"),
+            )
+        )
+
+    if event_type == "task_started":
+        return LineParseResult(
+            turn_started=TurnRecord(
+                turn_id=str(payload.get("turn_id", "")),
+                started_at=epoch_to_utc(payload.get("started_at")),
             )
         )
 
@@ -254,12 +267,16 @@ def _dispatch_event(payload: dict, file_path: str, ordinal: int) -> LineParseRes
         return LineParseResult(
             turn_aborted=TurnRecord(
                 turn_id=str(payload.get("turn_id", "")),
+                started_at=epoch_to_utc(payload.get("started_at")),
+                completed_at=epoch_to_utc(payload.get("completed_at")),
                 duration_ms=payload.get("duration_ms"),
                 aborted_reason=payload.get("reason"),
             )
         )
 
-    return LineParseResult(event={"event_type": event_type, "payload": payload})
+    return LineParseResult(
+        event={"ordinal": ordinal, "event_type": event_type, "payload": payload}
+    )
 
 
 UUID_RE = re.compile(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})")
@@ -315,7 +332,7 @@ def _merge(parsed: ParsedSession, result: LineParseResult) -> None:
         parsed.tool_results.append(result.tool_result)
     if result.item_completed is not None:
         parsed.items.append(result.item_completed)
-    for turn in (result.turn_completed, result.turn_aborted):
+    for turn in (result.turn_started, result.turn_completed, result.turn_aborted):
         if turn is not None:
             _upsert_turn(parsed, turn)
     if result.event is not None:

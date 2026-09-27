@@ -17,6 +17,20 @@ def to_utc(timestamp: str) -> datetime:
     return datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
+def epoch_to_utc(value: int | float | None) -> datetime | None:
+    """把 Unix 秒级时间戳归一化为 UTC aware datetime。
+
+    codex 的 task_started / task_complete 用秒级 epoch 记录轮次起止时间；
+    缺字段、类型不对或数值不可解析时返回 None，不猜。
+    """
+    if not isinstance(value, int | float):
+        return None
+    try:
+        return datetime.fromtimestamp(float(value), tz=timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
 class TokenUsage(BaseModel):
     """单次 API 调用的 token 用量。
 

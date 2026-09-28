@@ -1,0 +1,30 @@
+# 两个服务共用同一个数据卷：
+#   collector —— 常驻采集，把 ~/.codex/sessions 的增量写进 /data/agent-lens.db
+#   web       —— 只读查询 + 托管前端，暴露 8000 端口
+# 事实源以只读方式挂进来，容器永远不会修改 Codex 的原始日志。
+
+services:
+  collector:
+    build: .
+    image: agent-lens:local
+    command: ["agent-lens", "collect"]
+    restart: unless-stopped
+    volumes:
+      - "${CODEX_SESSIONS_DIR:-${HOME}/.codex/sessions}:/codex/sessions:ro"
+      - lens-data:/data
+
+  web:
+    image: agent-lens:local
+    build: .
+    command: ["agent-lens", "serve", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+    depends_on:
+      - collector
+    ports:
+      - "${AGENT_LENS_PORT:-8000}:8000"
+    volumes:
+      - "${CODEX_SESSIONS_DIR:-${HOME}/.codex/sessions}:/codex/sessions:ro"
+      - lens-data:/data
+
+volumes:
+  lens-data:

@@ -1,0 +1,22 @@
+.git
+.github
+.venv
+.pytest_cache
+.ruff_cache
+.uv-cache
+.superpowers
+__pycache__
+*.pyc
+*.db
+*.db-wal
+*.db-shm
+
+# 测试与文档不参与运行
+tests
+docs
+scripts
+
+# 前端依赖与产物：镜像里重新构建
+web/node_modules
+web/dist
+web/.vite

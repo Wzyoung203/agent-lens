@@ -1,0 +1,19 @@
+# 容器内的默认配置。宿主上想改，用 -v 覆盖 /etc/agent-lens/config.toml 挂进来。
+
+[sessions]
+# 宿主机的 ~/.codex/sessions 只读挂载到这里（见 docker-compose.yml）
+dir = "/codex/sessions"
+poll_interval_seconds = 2.0
+
+[storage]
+db_path = "/data/agent-lens.db"
+
+[langfuse]
+# 默认关闭：关掉不影响本地采集与分析，只少了云端一份可重建的视图。
+enabled = false
+granularity = "full"
+batch_size = 50
+
+[redaction]
+enabled = true
+summary_chars = 200

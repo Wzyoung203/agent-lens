@@ -35,9 +35,11 @@ _BUILTIN_RULES: tuple[tuple[str, str, int | None], ...] = (
     ("bearer", r"(?i)\bbearer\s+[A-Za-z0-9\-._~+/]{16,}=*", None),
     (
         "assignment",
-        r"(?i)\b(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|"
-        r"private[_-]?key|client[_-]?secret|auth[_-]?token|credentials)\b"
-        r"\s*[:=]\s*[\"']?([^\s\"',;]{6,})",
+        (
+            r"(?i)\b(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|"
+            r"private[_-]?key|client[_-]?secret|auth[_-]?token|credentials)\b"
+            r"\s*[:=]\s*[\"']?([^\s\"',;]{6,})"
+        ),
         1,
     ),
 )

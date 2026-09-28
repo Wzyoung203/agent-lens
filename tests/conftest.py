@@ -1,9 +1,23 @@
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from agent_lens.storage import connect, init_db
+
+
+class MutableNow:
+    """可控时钟：测试退避与限速时替代 datetime.now。"""
+
+    def __init__(self, value: datetime | None = None):
+        self.value = value or datetime(2026, 9, 28, 12, 0, tzinfo=UTC)
+
+    def __call__(self) -> datetime:
+        return self.value
+
+    def advance(self, seconds: float) -> None:
+        self.value = self.value + timedelta(seconds=seconds)
 
 
 @pytest.fixture
@@ -33,3 +47,10 @@ def lens_db(tmp_path: Path):
     init_db(conn)
     yield conn
     conn.close()
+
+
+@pytest.fixture
+def sessions_dir(tmp_path):
+    directory = tmp_path / "sessions"
+    directory.mkdir()
+    return directory

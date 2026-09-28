@@ -45,11 +45,15 @@ uv run agent-lens collect --once   # 扫描一次 ~/.codex/sessions 并入库
 uv run agent-lens collect          # 常驻采集（默认 2 秒轮询，Ctrl-C 优雅退出）
 uv run agent-lens status           # 看各表行数与上报队列状态
 uv run agent-lens backfill         # 忽略水位，重扫全部历史会话
+uv run agent-lens serve            # 查询 API + 前端，http://127.0.0.1:8000
 ```
 
 默认数据库在 `~/.agent-lens/agent-lens.db`，默认扫描 `~/.codex/sessions`，
 配置写在 `~/.agent-lens/config.toml`（TOML，字段见 `src/agent_lens/config.py`）。
 开启 Langfuse 上报需要另装 SDK（`uv add langfuse`）并在配置里填 `[langfuse]` 段。
+
+前端的开发与构建见 [web/README.md](web/README.md)：`npm run dev` 起 Vite 并把 `/api`
+代理到 8000，`npm run build` 的产物由 `agent-lens serve` 同源托管。
 
 ### 阶段
 

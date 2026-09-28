@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from .models import ParsedSession
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 DEFAULT_DB_PATH = Path.home() / ".agent-lens" / "agent-lens.db"
 DB_PATH_ENV = "AGENT_LENS_DB"
@@ -50,6 +50,24 @@ WRITE_TABLES = (
     "events",
     "ingest_state",
 )
+
+# v3 迁移用的 pricing 建表语句，必须与 schema.sql 里的定义保持一致。
+# 单独写一份是为了在旧库上「先重命名、再建新表、按 any 回填、删旧表」时不受
+# CREATE TABLE IF NOT EXISTS 的影响。
+_PRICING_TABLE_V3 = """
+CREATE TABLE pricing (
+    provider                        TEXT NOT NULL,
+    model                           TEXT NOT NULL,
+    effective_from                  TEXT NOT NULL,
+    time_window                     TEXT NOT NULL DEFAULT 'any',
+    input_price_per_mtok            REAL NOT NULL,
+    cached_input_price_per_mtok     REAL NOT NULL,
+    output_price_per_mtok           REAL NOT NULL,
+    reasoning_output_price_per_mtok REAL,
+    currency                        TEXT NOT NULL DEFAULT 'USD',
+    PRIMARY KEY (provider, model, effective_from, time_window)
+);
+"""
 
 
 def utc_now() -> datetime:
@@ -90,9 +108,46 @@ def init_db(conn: sqlite3.Connection) -> None:
         raise RuntimeError(
             f"数据库 schema 版本 {current} 高于本代码支持的 {SCHEMA_VERSION}，请升级 agent-lens"
         )
+    migrate(conn)
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     conn.commit()
+
+
+def _pricing_columns(conn: sqlite3.Connection) -> set[str]:
+    """返回 pricing 表当前的列名集合（表不存在时为空集）。"""
+    return {row[1] for row in conn.execute("PRAGMA table_info(pricing)").fetchall()}
+
+
+def migrate(conn: sqlite3.Connection) -> None:
+    """把旧库原地升级到当前 schema 版本，可重复执行。
+
+    目前只有一次迁移：v2 -> v3，pricing 主键补 time_window 维度。
+      * 旧库缺 time_window 时重建 pricing 表，历史行一律回填 'any'
+      * api_call_view 的定义在 v3 有变化，先删掉，交给 schema.sql 重建
+    """
+    columns = _pricing_columns(conn)
+    if columns and "time_window" not in columns:
+        with conn:
+            conn.execute("ALTER TABLE pricing RENAME TO pricing_v2")
+            conn.execute(_PRICING_TABLE_V3)
+            conn.execute(
+                """
+                INSERT INTO pricing (
+                    provider, model, effective_from, time_window,
+                    input_price_per_mtok, cached_input_price_per_mtok,
+                    output_price_per_mtok, reasoning_output_price_per_mtok, currency
+                )
+                SELECT
+                    provider, model, effective_from, 'any',
+                    input_price_per_mtok, cached_input_price_per_mtok,
+                    output_price_per_mtok, reasoning_output_price_per_mtok, currency
+                FROM pricing_v2
+                """
+            )
+            conn.execute("DROP TABLE pricing_v2")
+    # 视图无法用 IF NOT EXISTS 改定义，先删后由 schema.sql 重建
+    conn.execute("DROP VIEW IF EXISTS api_call_view")
 
 
 class WriteResult(BaseModel):

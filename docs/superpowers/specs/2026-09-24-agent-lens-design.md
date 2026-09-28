@@ -121,6 +121,26 @@ Codex 可执行文件内含完整 OTLP 导出实现。配置段为 `[otel]`，�
 
 这些指标**不在** JSONL 文件中，只能通过 OTLP 获取，因此归属阶段 3。
 
+### 4.11 token_usage_record 不带时间戳（2026-09-28 核实）
+
+`token_usage_record` 的 payload 只有 `response_id` / `root_turn_id` / `session_id` /
+`thread_id` / `turn_id` 与三组 usage，**没有时间戳字段**（在 2026-09-27 的真实会话文件上
+逐条核实）。因此 `api_calls.timestamp` 在真实数据上一律为 NULL，解析层给不出单次调用的
+绝对时刻。
+
+可用的时间锚点只有以下三类：
+
+- `session_meta.timestamp`：会话创建时刻
+- `task_started.started_at` / `task_complete.completed_at`（秒级 epoch）：turn 起止，
+  已落进 `turns.started_at` / `turns.completed_at`
+- `item_completed.started_at_ms` / `completed_at_ms`（毫秒级 epoch）：单条 item 的起止
+
+对 P1.4 的影响与决定：日趋势分桶与时段计价都需要「调用发生时刻」，而单次调用没有，
+因此 schema v3 给 `api_call_view` 增加派生列
+`occurred_at = COALESCE(a.timestamp, t.started_at, s.recorded_at, s.first_seen_at)`，
+把时间粒度降到 turn 级。这与 6.5 阶段 1 的指标口径一致（轮次耗时、上下文膨胀本就是
+turn 级）；若将来需要调用级时刻，只能靠阶段 3 的 OTLP。
+
 ## 5. 系统架构
 
 ```

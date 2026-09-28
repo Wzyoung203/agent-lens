@@ -1,10 +1,12 @@
--- agent-lens SQLite schema v1
+-- agent-lens SQLite schema v3
 --
 -- 约定
 --   * 幂等键统一为 (file_path, ordinal)：同一行日志重复写入不会产生新行
 --   * 时间一律存 UTC ISO8601 文本（形如 2026-09-27T13:00:00.123456+00:00），字典序即时间序
 --   * 正文不入库：只存长度、状态与「原始文件 + ordinal」指针，需要原文时回 JSONL 取
 --   * 成本、缓存命中率是派生值，不落库，查询时由 pricing.py 计算
+--   * v3：pricing 增加 time_window（any / peak / idle）；api_call_view 补 model_provider 与
+--     occurred_at（实测 token_usage_record 不带时间戳，只能回落到 turn 起始时间，见设计文档 4.11）
 
 CREATE TABLE IF NOT EXISTS sessions (
     session_id              TEXT PRIMARY KEY,
@@ -119,12 +121,13 @@ CREATE TABLE IF NOT EXISTS pricing (
     provider                        TEXT NOT NULL,
     model                           TEXT NOT NULL,
     effective_from                  TEXT NOT NULL,
+    time_window                     TEXT NOT NULL DEFAULT 'any',
     input_price_per_mtok            REAL NOT NULL,
     cached_input_price_per_mtok     REAL NOT NULL,
     output_price_per_mtok           REAL NOT NULL,
     reasoning_output_price_per_mtok REAL,
     currency                        TEXT NOT NULL DEFAULT 'USD',
-    PRIMARY KEY (provider, model, effective_from)
+    PRIMARY KEY (provider, model, effective_from, time_window)
 );
 
 CREATE INDEX IF NOT EXISTS idx_api_calls_session ON api_calls(session_id);
@@ -134,7 +137,8 @@ CREATE INDEX IF NOT EXISTS idx_tool_calls_lookup ON tool_calls(file_path, call_i
 CREATE INDEX IF NOT EXISTS idx_tool_results_lookup ON tool_results(file_path, call_id);
 CREATE INDEX IF NOT EXISTS idx_items_session ON items(session_id);
 CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);
-CREATE INDEX IF NOT EXISTS idx_pricing_lookup ON pricing(provider, model, effective_from DESC);
+CREATE INDEX IF NOT EXISTS idx_pricing_lookup
+    ON pricing(provider, model, time_window, effective_from DESC);
 
 CREATE VIEW IF NOT EXISTS api_call_view AS
 SELECT
@@ -151,9 +155,11 @@ SELECT
     a.reasoning_output_tokens,
     a.total_tokens,
     s.project,
+    s.model_provider,
     s.cli_version,
     t.model,
     t.effort,
+    COALESCE(a.timestamp, t.started_at, s.recorded_at, s.first_seen_at) AS occurred_at,
     CAST(a.cached_input_tokens AS REAL) / NULLIF(a.input_tokens, 0) AS cache_hit_rate
 FROM api_calls a
 LEFT JOIN sessions s ON s.session_id = a.session_id

@@ -36,6 +36,21 @@ Python 3.12 + uv + FastAPI + SQLite + Langfuse SDK；Vue 3 + Vite + TypeScript +
 
 - 设计文档：[docs/superpowers/specs/2026-09-24-agent-lens-design.md](docs/superpowers/specs/2026-09-24-agent-lens-design.md)
 
+### 怎么跑
+
+```bash
+uv sync                            # 安装依赖
+uv run pytest                      # 跑测试
+uv run agent-lens collect --once   # 扫描一次 ~/.codex/sessions 并入库
+uv run agent-lens collect          # 常驻采集（默认 2 秒轮询，Ctrl-C 优雅退出）
+uv run agent-lens status           # 看各表行数与上报队列状态
+uv run agent-lens backfill         # 忽略水位，重扫全部历史会话
+```
+
+默认数据库在 `~/.agent-lens/agent-lens.db`，默认扫描 `~/.codex/sessions`，
+配置写在 `~/.agent-lens/config.toml`（TOML，字段见 `src/agent_lens/config.py`）。
+开启 Langfuse 上报需要另装 SDK（`uv add langfuse`）并在配置里填 `[langfuse]` 段。
+
 ### 阶段
 
 1. 端到端最小闭环：采集器 + SQLite + Langfuse 上报 + 五个前端页面

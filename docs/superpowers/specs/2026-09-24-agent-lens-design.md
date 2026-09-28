@@ -461,6 +461,11 @@ retention:
 以下问题在对应阶段开始前必须先验证，不允许凭推断设计：
 
 1. **JSONL 时间戳粒度是否足以计算延迟类派生指标。** 若不足，TTFT / TBT 完全依赖阶段 3 的 OTLP 接收器。验证方式：用真实数据比对 `task_started.started_at` 与 `token_count` 事件的间隔。
+
+   **实测补充（2026-09-28，P1.3）**：JSONL 里的 `task_complete` 事件带 `time_to_first_token_ms` 字段，
+   所以「首 token 延迟」在阶段 1 的数据里本来就有，不必等阶段 3。阶段 3 的 OTLP 接收器仍然要做，
+   因为 TBT（token 间隔）与 API overhead 只存在于 OTLP 指标里。该结论来自 173 行真实样本，
+   尚未验证 `time_to_first_token_ms` 的统计口径（是否含排队时间）。
 2. **deepseek 对 reasoning token 是否单独计价。** 从数据结构无法判断，需核对账单。若单独计价，`pricing` 表需增加第四档价格。
 3. **Langfuse 的 OTLP 端口是否接收 metrics 类型。** 若不接收，阶段 3 的延迟指标需由自建 OTLP 接收器直接写入 SQLite。验证方式：查阅 Langfuse 文档并向其端点发送测试数据。
 4. **Codex 对旧会话文件的依赖程度。** 决定是否开放「归档后删除原始文件」选项。验证方式：把一份旧文件移走，观察 Codex 的会话列表与恢复功能是否受影响。

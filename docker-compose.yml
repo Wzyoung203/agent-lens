@@ -26,5 +26,30 @@ services:
       - "${CODEX_SESSIONS_DIR:-${HOME}/.codex/sessions}:/codex/sessions:ro"
       - lens-data:/data
 
+  # 开发用：Vite dev server（带 HMR），源码从宿主挂进去，改了立刻生效。
+  #   docker compose --profile dev up -d web-dev
+  # 只在需要改前端时才用；平时看数据用上面的 web（生产产物）就够。
+  web-dev:
+    profiles: ["dev"]
+    image: node:22-alpine
+    working_dir: /web
+    # --no-package-lock / --no-save：容器里的 npm 版本与宿主不同，让它别去改宿主的
+    # package-lock.json（实测会删掉 libc 元数据，那是版本差异不是真实变更）。
+    command: >
+      sh -c "npm install --no-save --no-package-lock --no-audit --no-fund &&
+             npm run dev -- --host 0.0.0.0 --port 5173"
+    environment:
+      # 容器里后端是 compose 的服务名，不是 127.0.0.1
+      VITE_PROXY_TARGET: http://web:8000
+    ports:
+      - "${AGENT_LENS_DEV_PORT:-5173}:5173"
+    volumes:
+      - ./web:/web
+      # node_modules 放命名卷：宿主的依赖是 darwin 构建的，直接挂进 linux 容器会跑不起来
+      - web-node-modules:/web/node_modules
+    depends_on:
+      - web
+
 volumes:
   lens-data:
+  web-node-modules:

@@ -3,8 +3,11 @@ import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
 
-// 开发时 /api 代理到本地 FastAPI（P1.4a 的 `agent-lens serve`），
+// 开发时 /api 代理到 FastAPI（P1.4a 的 `agent-lens serve`），
 // 生产时前端产物由同一个 FastAPI 托管，因此两边都是同源、不需要 CORS。
+// 代理目标可覆盖：在容器里跑 dev server 时后端是 compose 的 `web` 服务名。
+const proxyTarget = process.env.VITE_PROXY_TARGET ?? 'http://127.0.0.1:8000'
+
 export default defineConfig({
   plugins: [vue()],
   resolve: {
@@ -13,7 +16,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+      '/api': { target: proxyTarget, changeOrigin: true },
     },
   },
   build: {

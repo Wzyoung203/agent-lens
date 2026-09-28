@@ -1,8 +1,8 @@
 from agent_lens.storage import SCHEMA_VERSION, counts, init_db
 
 
-def test_schema_version_is_two(lens_db):
-    assert SCHEMA_VERSION == 2
+def test_schema_version_is_three(lens_db):
+    assert SCHEMA_VERSION == 3
 
 
 def test_report_queue_table_exists(lens_db):

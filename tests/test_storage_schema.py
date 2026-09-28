@@ -26,7 +26,7 @@ def test_schema_is_idempotent_and_versioned(tmp_path: Path):
         "project_paths",
         "ingest_state",
     } <= tables
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
     assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
 
 

@@ -121,6 +121,26 @@ Codex 可执行文件内含完整 OTLP 导出实现。配置段为 `[otel]`，�
 
 这些指标**不在** JSONL 文件中，只能通过 OTLP 获取，因此归属阶段 3。
 
+### 4.11 token_usage_record 不带时间戳（2026-09-28 核实）
+
+`token_usage_record` 的 payload 只有 `response_id` / `root_turn_id` / `session_id` /
+`thread_id` / `turn_id` 与三组 usage，**没有时间戳字段**（在 2026-09-27 的真实会话文件上
+逐条核实）。因此 `api_calls.timestamp` 在真实数据上一律为 NULL，解析层给不出单次调用的
+绝对时刻。
+
+可用的时间锚点只有以下三类：
+
+- `session_meta.timestamp`：会话创建时刻
+- `task_started.started_at` / `task_complete.completed_at`（秒级 epoch）：turn 起止，
+  已落进 `turns.started_at` / `turns.completed_at`
+- `item_completed.started_at_ms` / `completed_at_ms`（毫秒级 epoch）：单条 item 的起止
+
+对 P1.4 的影响与决定：日趋势分桶与时段计价都需要「调用发生时刻」，而单次调用没有，
+因此 schema v3 给 `api_call_view` 增加派生列
+`occurred_at = COALESCE(a.timestamp, t.started_at, s.recorded_at, s.first_seen_at)`，
+把时间粒度降到 turn 级。这与 6.5 阶段 1 的指标口径一致（轮次耗时、上下文膨胀本就是
+turn 级）；若将来需要调用级时刻，只能靠阶段 3 的 OTLP。
+
 ## 5. 系统架构
 
 ```
@@ -441,6 +461,11 @@ retention:
 以下问题在对应阶段开始前必须先验证，不允许凭推断设计：
 
 1. **JSONL 时间戳粒度是否足以计算延迟类派生指标。** 若不足，TTFT / TBT 完全依赖阶段 3 的 OTLP 接收器。验证方式：用真实数据比对 `task_started.started_at` 与 `token_count` 事件的间隔。
+
+   **实测补充（2026-09-28，P1.3）**：JSONL 里的 `task_complete` 事件带 `time_to_first_token_ms` 字段，
+   所以「首 token 延迟」在阶段 1 的数据里本来就有，不必等阶段 3。阶段 3 的 OTLP 接收器仍然要做，
+   因为 TBT（token 间隔）与 API overhead 只存在于 OTLP 指标里。该结论来自 173 行真实样本，
+   尚未验证 `time_to_first_token_ms` 的统计口径（是否含排队时间）。
 2. **deepseek 对 reasoning token 是否单独计价。** 从数据结构无法判断，需核对账单。若单独计价，`pricing` 表需增加第四档价格。
 3. **Langfuse 的 OTLP 端口是否接收 metrics 类型。** 若不接收，阶段 3 的延迟指标需由自建 OTLP 接收器直接写入 SQLite。验证方式：查阅 Langfuse 文档并向其端点发送测试数据。
 4. **Codex 对旧会话文件的依赖程度。** 决定是否开放「归档后删除原始文件」选项。验证方式：把一份旧文件移走，观察 Codex 的会话列表与恢复功能是否受影响。

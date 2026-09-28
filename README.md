@@ -36,6 +36,46 @@ Python 3.12 + uv + FastAPI + SQLite + Langfuse SDK；Vue 3 + Vite + TypeScript +
 
 - 设计文档：[docs/superpowers/specs/2026-09-24-agent-lens-design.md](docs/superpowers/specs/2026-09-24-agent-lens-design.md)
 
+### 怎么跑
+
+```bash
+uv sync                            # 安装依赖
+uv run pytest                      # 跑测试
+uv run agent-lens collect --once   # 扫描一次 ~/.codex/sessions 并入库
+uv run agent-lens collect          # 常驻采集（默认 2 秒轮询，Ctrl-C 优雅退出）
+uv run agent-lens status           # 看各表行数与上报队列状态
+uv run agent-lens backfill         # 忽略水位，重扫全部历史会话
+uv run agent-lens serve            # 查询 API + 前端，http://127.0.0.1:8000
+```
+
+默认数据库在 `~/.agent-lens/agent-lens.db`，默认扫描 `~/.codex/sessions`，
+配置写在 `~/.agent-lens/config.toml`（TOML，字段见 `src/agent_lens/config.py`）。
+开启 Langfuse 上报需要另装 SDK（`uv add langfuse`）并在配置里填 `[langfuse]` 段。
+
+前端的开发与构建见 [web/README.md](web/README.md)：`npm run dev` 起 Vite 并把 `/api`
+代理到 8000，`npm run build` 的产物由 `agent-lens serve` 同源托管。
+
+### 用 Docker 跑
+
+需要 Docker Desktop，镜像里自带前端构建产物，无需在宿主机装 Node 或 Python。
+
+```bash
+docker compose up -d --build     # 采集器 + 仪表盘一起起来
+open http://localhost:8000       # 仪表盘
+
+docker compose run --rm collector agent-lens collect --once   # 只跑一次采集
+docker compose exec web agent-lens status                    # 看各表行数
+docker compose logs -f collector                             # 采集日志
+docker compose down                                          # 停止（数据卷保留）
+```
+
+两个服务分工：`collector` 常驻轮询（默认 2 秒）把增量写进数据卷里的 SQLite，`web` 只读查询
+并托管前端。宿主的 `~/.codex/sessions` 以**只读**方式挂进容器，容器不会改动 Codex 的原始日志；
+换目录用 `CODEX_SESSIONS_DIR=/path/to/sessions docker compose up -d`，换端口用 `AGENT_LENS_PORT`。
+
+数据库与配置落在命名卷 `lens-data` 里（`/data/agent-lens.db`）。容器内的默认配置是
+[deploy/config.toml](deploy/config.toml)；想改就把自己的配置挂到 `/etc/agent-lens/config.toml`。
+
 ### 阶段
 
 1. 端到端最小闭环：采集器 + SQLite + Langfuse 上报 + 五个前端页面

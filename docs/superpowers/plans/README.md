@@ -10,10 +10,13 @@
 |---|---|---|---|
 | [P1.1](2026-09-25-p1-1-codex-log-parser.md) | 把 Codex 的 JSONL 解析成结构化对象 | `models.py` / `parser.py`，纯函数，零 IO | 无 |
 | [P1.2](2026-09-27-p1-2-storage-layer.md) | 存储层：SQLite schema、幂等写入、水位表、成本计算 | `storage.py` / `schema.sql` / `pricing.py` | P1.1 的模型 |
-| P1.3 | 采集守护进程：扫描、增量读、脱敏、队列、Langfuse 上报 | `collector.py` / `redact.py` / `reporter.py` | P1.2 的存储接口 |
-| P1.4 | 查询 API 与 Web 前端五页 | `api/` 后端 + `web/` 前端 | P1.2 的查询接口 |
+| [P1.3](2026-09-28-p1-3-collector.md) | 采集守护进程：扫描、增量读、脱敏、队列、Langfuse 上报 | `collector.py` / `redact.py` / `reporter.py` | P1.2 的存储接口 |
+| [P1.4a](2026-09-28-p1-4a-query-api.md) | 查询 API：聚合查询、设置写接口、静态托管 | `queries.py` / `api/` | P1.2 的查询接口 |
+| [P1.4b](2026-09-28-p1-4b-web-frontend.md) | Web 前端五页：总览、项目、会话、工具、设置 | `web/` | P1.4a 的接口契约 |
 
-**说明**：P1.4 是四份里最大的一份。如果执行中发现它偏大，可以拆成 P1.4a（FastAPI 查询接口）与 P1.4b（Vue 前端），接口边界已经在这份计划里定好了。
+**说明**：P1.4 已按上述建议拆成 P1.4a（FastAPI 查询接口）与 P1.4b（Vue 前端）。两者的接口边界固定在 P1.4a 的「前端契约」一节，P1.4b 的 `types.ts` 必须与该节逐字对齐。
+
+**前端设计**：P1.4b 开头有「深空控制台」设计方向（令牌、排版、动效、Element Plus 覆盖策略），三个愿望词是**简约、科技感、交互丝滑**。
 
 **阶段 1 完成标志**：`uv run agent-lens collect` 常驻采集真实数据，网页上能看到总览、项目、会话、工具调用四个页面，设置页能改价目表，Langfuse 上能看到按 turn 组织的 trace。
 

@@ -1,0 +1,75 @@
+/* 深空控制台：唯一的设计令牌来源。浅色是同构的第二形态，不是另一套设计。 */
+:root {
+  /* 浅色（默认） */
+  --al-bg: #f5f7fb;
+  --al-bg-glow: radial-gradient(1100px 520px at 12% -12%, rgba(34, 211, 238, 0.1), transparent 62%),
+    radial-gradient(900px 460px at 102% -4%, rgba(139, 92, 246, 0.08), transparent 58%);
+  --al-surface: #ffffff;
+  --al-surface-2: #f2f5fa;
+  --al-surface-3: #e9eef6;
+  --al-border: rgba(15, 23, 42, 0.08);
+  --al-border-strong: rgba(15, 23, 42, 0.16);
+  --al-text: #0f172a;
+  --al-text-2: #475569;
+  --al-text-3: #8492a6;
+  --al-accent: #0891b2;
+  --al-accent-2: #7c3aed;
+  --al-success: #059669;
+  --al-warning: #d97706;
+  --al-danger: #dc2626;
+  --al-info: #2563eb;
+  --al-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 10px 28px rgba(15, 23, 42, 0.07);
+  --al-glow: 0 0 0 1px rgba(8, 145, 178, 0.35), 0 0 20px rgba(8, 145, 178, 0.14);
+  --al-accent-soft: rgba(8, 145, 178, 0.1);
+}
+
+html.dark {
+  --al-bg: #0a0e17;
+  --al-bg-glow: radial-gradient(1100px 520px at 12% -12%, rgba(34, 211, 238, 0.1), transparent 62%),
+    radial-gradient(900px 460px at 102% -4%, rgba(139, 92, 246, 0.09), transparent 58%);
+  --al-surface: #10151f;
+  --al-surface-2: #161d2a;
+  --al-surface-3: #1d2534;
+  --al-border: rgba(255, 255, 255, 0.07);
+  --al-border-strong: rgba(255, 255, 255, 0.15);
+  --al-text: #e8edf7;
+  --al-text-2: #97a2b8;
+  --al-text-3: #5e6980;
+  --al-accent: #22d3ee;
+  --al-accent-2: #8b5cf6;
+  --al-success: #34d399;
+  --al-warning: #fbbf24;
+  --al-danger: #f87171;
+  --al-info: #60a5fa;
+  --al-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 10px 28px rgba(0, 0, 0, 0.32);
+  --al-glow: 0 0 0 1px rgba(34, 211, 238, 0.3), 0 0 22px rgba(34, 211, 238, 0.16);
+  --al-accent-soft: rgba(34, 211, 238, 0.12);
+}
+
+:root {
+  /* 形状与节奏 */
+  --al-radius: 12px;
+  --al-radius-sm: 8px;
+  --al-radius-pill: 999px;
+  --al-space-1: 4px;
+  --al-space-2: 8px;
+  --al-space-3: 12px;
+  --al-space-4: 16px;
+  --al-space-5: 24px;
+  --al-space-6: 32px;
+  --al-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --al-dur-fast: 140ms;
+  --al-dur: 200ms;
+  --al-dur-slow: 320ms;
+  --al-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  --al-font-mono: 'SF Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --al-dur-fast: 0ms;
+    --al-dur: 0ms;
+    --al-dur-slow: 0ms;
+  }
+}

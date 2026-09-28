@@ -341,6 +341,15 @@ def _merge(parsed: ParsedSession, result: LineParseResult) -> None:
         parsed.parse_errors.append(result.parse_error)
 
 
+def merge_line_result(parsed: ParsedSession, result: LineParseResult) -> None:
+    """把单行解析结果合并进 ParsedSession。
+
+    P1.3 的采集器按增量批次解析，需要复用与 parse_session_file 完全相同的合并逻辑，
+    所以把内部的 _merge 公开出来；两者必须是同一份实现，不能各写一遍。
+    """
+    _merge(parsed, result)
+
+
 def parse_session_file(path: Path) -> ParsedSession:
     """解析一个会话文件。
 

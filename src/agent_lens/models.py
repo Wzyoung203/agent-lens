@@ -142,6 +142,7 @@ class ToolResultRecord(BaseModel):
     exit_code: int | None = None
     wall_time_seconds: float | None = None
     success: bool | None = None
+    result_summary: str | None = None
 
 
 class ItemCompletedRecord(BaseModel):

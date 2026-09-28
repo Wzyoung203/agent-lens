@@ -177,3 +177,23 @@ SELECT
     r.result_summary
 FROM tool_calls c
 LEFT JOIN tool_results r ON r.file_path = c.file_path AND r.call_id = c.call_id;
+
+-- P1.3：待上报队列。落盘即持久化，进程被杀后重启自动重投（设计文档 5.5 / 10 节）
+-- payload 里的正文已脱敏，report_id 是幂等键，重复入队被忽略
+CREATE TABLE IF NOT EXISTS report_queue (
+    report_id       TEXT PRIMARY KEY,
+    session_id      TEXT,
+    turn_id         TEXT,
+    kind            TEXT NOT NULL,
+    granularity     TEXT NOT NULL DEFAULT 'full',
+    payload         TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'pending',
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    last_error      TEXT,
+    next_attempt_at TEXT,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_queue_pending
+    ON report_queue(status, next_attempt_at, created_at);

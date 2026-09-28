@@ -2,6 +2,33 @@
 
 本文件是这个仓库的持久约定，任何在本仓库工作的 agent 都要先读它。
 
+## 先明确一件事：记忆不是保证
+
+**写进本文件的规则只是「记忆」，不是「约束」。** 它只有在 agent 真的读到、并且愿意遵守时
+才起作用；一个继承了控制器身份的子代理完全可能无视它——本项目就发生过。
+
+所以防线分三层，可靠性从高到低：
+
+| 层 | 手段 | 能防住什么 | 依赖自觉吗 |
+|---|---|---|---|
+| 1 · 策略 | 本仓库默认**不派子代理**；必须派时也只派单一任务，其余由控制器亲自实现 | 整类子代理事故 | 不依赖 |
+| 2 · 约束 | `scripts/agent-guard.sh` + pre-commit hook | 分支漂移（提交落到非预期分支） | 不依赖（git 直接拒绝提交） |
+| 3 · 记忆 | 本文件 + `.superpowers/sdd/<plan>/progress.md` | 提醒、复盘、跨会话传递 | 依赖 |
+
+只会用第 3 层，就等于指望下一个 agent 记得住——那正是这次出问题的地方。
+
+### 分支守卫用法
+
+```bash
+scripts/install-hooks.sh                # 克隆后跑一次，接上 core.hooksPath
+scripts/agent-guard.sh claim <branch>   # 派发子代理前，声明本轮应该在哪条分支上
+scripts/agent-guard.sh status           # 随时确认锁与当前分支
+scripts/agent-guard.sh release          # 本轮结束解除
+```
+
+`claim` 之后，任何落在别的分支上的提交都会被 git 拒绝，并打印预期分支与当前分支。
+**没有 claim 过时守卫完全不生效**，不影响日常单人开发。
+
 ## 子代理（subagent）使用规则 —— 出过两次事故，务必遵守
 
 本仓库的计划文档带有 `REQUIRED SUB-SKILL: subagent-driven-development` 头，容易诱导控制器

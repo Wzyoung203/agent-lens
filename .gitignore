@@ -20,6 +20,9 @@ dist/
 .env.local
 config.local.yaml
 
+# 分支守卫的运行时标记（由 scripts/agent-guard.sh 维护）
+.agent-branch
+
 # 编辑器与系统
 .vscode/
 .idea/

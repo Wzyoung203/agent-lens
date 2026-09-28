@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# 提交前先过分支守卫：只有在 .agent-branch 存在（即控制器正在跑派发流程）时才生效。
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+exec "$root/scripts/agent-guard.sh" check

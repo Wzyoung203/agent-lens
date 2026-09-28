@@ -273,6 +273,11 @@ class Pricer:
             return 0.0
         at = None
         timestamp = row["timestamp"]
+        keys = row.keys()
+        if not timestamp and "occurred_at" in keys:
+            # 实测 token_usage_record 不带时间戳（设计文档 4.11），真实数据上 timestamp
+            # 恒为 NULL；api_call_view.occurred_at 是回落到 turn 起始时间的派生列。
+            timestamp = row["occurred_at"]
         if timestamp:
             at = datetime.fromisoformat(timestamp)
         price = self.price_for(row["model_provider"], row["model"], at)

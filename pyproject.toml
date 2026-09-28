@@ -3,13 +3,13 @@ name = "agent-lens"
 version = "0.1.0"
 description = "Observability and cost analytics for coding agents"
 requires-python = ">=3.12"
-dependencies = ["pydantic>=2.7"]
+dependencies = ["pydantic>=2.7", "fastapi>=0.115", "uvicorn[standard]>=0.30"]
 
 [project.scripts]
 agent-lens = "agent_lens.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8.0", "ruff>=0.5"]
+dev = ["pytest>=8.0", "ruff>=0.5", "httpx>=0.27"]
 
 [build-system]
 requires = ["hatchling"]
@@ -21,6 +21,11 @@ packages = ["src/agent_lens"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
+filterwarnings = [
+    # starlette 自带的 TestClient 依赖 httpx，环境里会发一条上游弃用告警；
+    # 这不是本项目的代码问题，但会让测试输出不再干净，所以按消息过滤掉。
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated.*",
+]
 
 [tool.ruff]
 line-length = 100

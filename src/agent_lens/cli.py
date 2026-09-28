@@ -10,6 +10,7 @@ import argparse
 import signal
 import sys
 import threading
+from pathlib import Path
 
 from .collector import Collector, CollectOutcome
 from .config import AppConfig, load_config
@@ -47,6 +48,14 @@ def build_parser() -> argparse.ArgumentParser:
     backfill.add_argument("--db", default=None)
     backfill.add_argument("--sessions-dir", default=None)
 
+    serve = sub.add_parser("serve", help="启动查询 API（并托管前端构建产物）")
+    serve.add_argument("--host", default="127.0.0.1", help="监听地址")
+    serve.add_argument("--port", type=int, default=8000, help="监听端口")
+    serve.add_argument("--reload", action="store_true", help="开发模式自动重载")
+    serve.add_argument("--config", default=None)
+    serve.add_argument("--db", default=None)
+    serve.add_argument("--web-dir", default=None, help="前端构建产物目录，默认 web/dist")
+
     return parser
 
 
@@ -62,6 +71,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_status(args)
     if args.command == "backfill":
         return _run_backfill(args)
+    if args.command == "serve":
+        return _run_serve(args)
     parser.error(f"未知命令：{args.command}")
     return 2
 
@@ -199,6 +210,37 @@ def _format_outcome(outcome: CollectOutcome, report: ReportOutcome | None) -> st
     if report is not None:
         text += f" sent={report.sent} failed={report.failed} pending={report.pending}"
     return text
+
+
+def _run_serve(args: argparse.Namespace) -> int:
+    """启动 uvicorn。--reload 走工厂字符串，普通模式直接传 app 实例。"""
+    import uvicorn
+
+    from .api.app import create_app
+
+    config = load_config(args.config)
+    if args.db:
+        config.storage.db_path = args.db
+    if args.reload:
+        # reload 需要 uvicorn 自己重新导入；数据库路径走 AGENT_LENS_DB 环境变量。
+        import os
+
+        os.environ.setdefault("AGENT_LENS_DB", str(config.db_path))
+        uvicorn.run(
+            "agent_lens.api.app:create_app", factory=True, host=args.host, port=args.port, reload=True
+        )
+        return 0
+
+    web_dir = Path(args.web_dir) if args.web_dir else Path("web/dist")
+    app = create_app(
+        config.db_path, static_dir=web_dir if web_dir.exists() else None
+    )
+    if web_dir.exists():
+        print(f"serving API + frontend from {web_dir} on http://{args.host}:{args.port}")
+    else:
+        print(f"serving API only on http://{args.host}:{args.port} (no {web_dir})")
+    uvicorn.run(app, host=args.host, port=args.port)
+    return 0
 
 
 if __name__ == "__main__":

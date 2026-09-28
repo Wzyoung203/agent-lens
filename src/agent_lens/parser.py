@@ -301,6 +301,11 @@ def _session_id_from_filename(path: Path) -> str:
     return matches[-1] if matches else path.stem
 
 
+def session_id_from_filename(path: Path) -> str:
+    """从文件名取会话 ID 兜底。parse_session_file 与 P1.3 采集器共用这一份实现。"""
+    return _session_id_from_filename(path)
+
+
 def _upsert_turn(parsed: ParsedSession, turn: TurnRecord) -> None:
     """按 turn_id 合并 task_complete 与 turn_aborted。"""
     for existing in parsed.turns:
@@ -359,7 +364,7 @@ def parse_session_file(path: Path) -> ParsedSession:
       缺 session_meta -> 会话 ID 回退为文件名里的 UUID
     """
     file_path = str(path)
-    parsed = ParsedSession(session_id=_session_id_from_filename(path), file_path=file_path)
+    parsed = ParsedSession(session_id=session_id_from_filename(path), file_path=file_path)
     lines = list(iter_jsonl(path))
     if not lines:
         return parsed

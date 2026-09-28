@@ -5,6 +5,9 @@ description = "Observability and cost analytics for coding agents"
 requires-python = ">=3.12"
 dependencies = ["pydantic>=2.7"]
 
+[project.scripts]
+agent-lens = "agent_lens.cli:main"
+
 [dependency-groups]
 dev = ["pytest>=8.0", "ruff>=0.5"]
 

@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from .models import ParsedSession
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 DEFAULT_DB_PATH = Path.home() / ".agent-lens" / "agent-lens.db"
 DB_PATH_ENV = "AGENT_LENS_DB"
@@ -38,6 +38,7 @@ COUNTS_TABLES = (
     "projects",
     "project_paths",
     "pricing",
+    "report_queue",
 )
 WRITE_TABLES = (
     "sessions",
@@ -312,8 +313,8 @@ def write_parsed_session(
                 """
                 INSERT OR IGNORE INTO tool_results (
                     file_path, ordinal, session_id, call_id,
-                    output_chars, exit_code, wall_time_seconds, success
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    output_chars, exit_code, wall_time_seconds, success, result_summary
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     tool_result.file_path,
@@ -324,6 +325,7 @@ def write_parsed_session(
                     tool_result.exit_code,
                     tool_result.wall_time_seconds,
                     None if tool_result.success is None else int(tool_result.success),
+                    tool_result.result_summary,
                 ),
             )
             _tally(cursor, inserted, skipped, "tool_results")

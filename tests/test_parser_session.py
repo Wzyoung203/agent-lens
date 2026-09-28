@@ -1,3 +1,5 @@
+import json
+
 from agent_lens.parser import parse_session_file
 
 
@@ -137,3 +139,15 @@ def test_turn_complete_and_aborted_merge_into_one_turn(write_jsonl):
     assert len(parsed.turns) == 1
     assert parsed.turns[0].duration_ms == 300000
     assert parsed.turns[0].aborted_reason == "user_interrupt"
+
+
+def test_merge_line_result_is_public(write_jsonl):
+    from agent_lens.models import ParsedSession
+    from agent_lens.parser import merge_line_result, parse_line
+
+    parsed = ParsedSession(session_id="s", file_path="f.jsonl")
+
+    merge_line_result(parsed, parse_line(json.dumps(usage_line(4, 10, 10)), "f.jsonl", 4))
+
+    assert len(parsed.api_calls) == 1
+    assert parsed.total_input_tokens == 10

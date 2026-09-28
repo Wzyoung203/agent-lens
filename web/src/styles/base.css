@@ -1,0 +1,84 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100vh;
+  margin: 0;
+}
+
+body {
+  background: var(--al-bg);
+  background-image: var(--al-bg-glow);
+  background-attachment: fixed;
+  color: var(--al-text);
+  font-family: var(--al-font);
+  font-size: 14px;
+  line-height: 22px;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--al-accent-soft);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* 细滚动条：不抢视觉，但保留位置感 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--al-border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--al-border-strong);
+  border: 3px solid transparent;
+  border-radius: var(--al-radius-pill);
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.al-fade-enter-active,
+.al-fade-leave-active {
+  transition: opacity 180ms var(--al-ease);
+}
+
+.al-fade-enter-from,
+.al-fade-leave-to {
+  opacity: 0;
+}
+
+/* 数字一律等宽 + 表格数字对齐，避免刷新时数字跳动 */
+.al-num {
+  font-family: var(--al-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.al-card {
+  border: 1px solid var(--al-border);
+  border-radius: var(--al-radius);
+  background: var(--al-surface);
+  box-shadow: var(--al-shadow);
+}
+
+.al-muted {
+  color: var(--al-text-2);
+}
+
+.al-dim {
+  color: var(--al-text-3);
+}

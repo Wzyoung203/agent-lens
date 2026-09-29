@@ -2,6 +2,7 @@
 import { http } from './client'
 import type {
   AppStatus,
+  ContextOverviewResponse,
   HealthResponse,
   OverviewResponse,
   Page,
@@ -66,4 +67,7 @@ export const api = {
     http.post<{ sessions_reassigned: number }>('/settings/projects/refresh'),
 
   status: () => http.get<AppStatus>('/settings/status'),
+
+  context: (days: number, project?: string) =>
+    http.get<ContextOverviewResponse>(`/context${query({ days, project })}`),
 }

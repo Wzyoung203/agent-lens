@@ -34,6 +34,12 @@ export const router = createRouter({
       meta: { title: '工具调用' },
     },
     {
+      path: '/context',
+      name: 'context',
+      component: () => import('@/views/ContextView.vue'),
+      meta: { title: '上下文成本' },
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),

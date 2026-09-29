@@ -203,3 +203,23 @@ CREATE TABLE IF NOT EXISTS report_queue (
 
 CREATE INDEX IF NOT EXISTS idx_report_queue_pending
     ON report_queue(status, next_attempt_at, created_at);
+
+-- P2.1：上下文构成投影。正文不入库，这里只存字符数与锚定后的 token。
+-- unattributed 块的 cjk_chars / other_chars 恒为 0：它是真实 input_tokens 与字符估算
+-- 之间的差额（每次调用重发的工具定义与请求框架）。每个调用五行，五行之和等于 input_tokens。
+CREATE TABLE IF NOT EXISTS context_breakdown (
+    file_path         TEXT NOT NULL,
+    ordinal           INTEGER NOT NULL,
+    block             TEXT NOT NULL,
+    session_id        TEXT,
+    turn_id           TEXT,
+    input_tokens      INTEGER NOT NULL DEFAULT 0,
+    cjk_chars         INTEGER NOT NULL DEFAULT 0,
+    other_chars       INTEGER NOT NULL DEFAULT 0,
+    estimated_tokens  REAL NOT NULL DEFAULT 0,
+    attributed_tokens REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (file_path, ordinal, block)
+);
+
+CREATE INDEX IF NOT EXISTS idx_context_breakdown_session
+    ON context_breakdown(session_id);

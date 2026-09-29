@@ -14,14 +14,16 @@ import json
 import os
 import sqlite3
 from collections import defaultdict
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from .context import BLOCK_UNATTRIBUTED, BLOCKS, CallBreakdown, attribute
 from .models import ParsedSession
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 DEFAULT_DB_PATH = Path.home() / ".agent-lens" / "agent-lens.db"
 DB_PATH_ENV = "AGENT_LENS_DB"
@@ -434,6 +436,68 @@ def write_parsed_session(
         inserted={table: inserted.get(table, 0) for table in WRITE_TABLES},
         skipped={table: skipped.get(table, 0) for table in WRITE_TABLES},
     )
+
+
+def write_context_breakdown(conn: sqlite3.Connection, rows: Sequence[CallBreakdown]) -> int:
+    """写入上下文分解。幂等：同一批数据重复写不产生重复行。
+
+    每个调用写 5 行（4 个字符块 + 1 个未归因块）。attributed_tokens 现算，
+    保证该调用 5 行之和恰好等于 input_tokens。
+    """
+    written = 0
+    with conn:
+        for call in rows:
+            attributed, unattributed = attribute(call.blocks, call.input_tokens)
+            payload: list[tuple] = []
+            for name in BLOCKS:
+                block = call.blocks[name]
+                payload.append(
+                    (
+                        call.file_path,
+                        call.ordinal,
+                        name,
+                        call.session_id,
+                        call.turn_id,
+                        call.input_tokens,
+                        block.cjk,
+                        block.other,
+                        block.estimated_tokens,
+                        attributed[name],
+                    )
+                )
+            payload.append(
+                (
+                    call.file_path,
+                    call.ordinal,
+                    BLOCK_UNATTRIBUTED,
+                    call.session_id,
+                    call.turn_id,
+                    call.input_tokens,
+                    0,
+                    0,
+                    0.0,
+                    unattributed,
+                )
+            )
+            conn.executemany(
+                """
+                INSERT INTO context_breakdown (
+                    file_path, ordinal, block, session_id, turn_id, input_tokens,
+                    cjk_chars, other_chars, estimated_tokens, attributed_tokens
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (file_path, ordinal, block) DO UPDATE SET
+                    session_id = excluded.session_id,
+                    turn_id = excluded.turn_id,
+                    input_tokens = excluded.input_tokens,
+                    cjk_chars = excluded.cjk_chars,
+                    other_chars = excluded.other_chars,
+                    estimated_tokens = excluded.estimated_tokens,
+                    attributed_tokens = excluded.attributed_tokens
+                """,
+                payload,
+            )
+            written += len(payload)
+    return written
 
 
 def counts(conn: sqlite3.Connection) -> dict[str, int]:

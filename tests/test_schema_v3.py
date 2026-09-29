@@ -22,12 +22,13 @@ def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
     return {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
 
 
-def test_schema_version_is_three(tmp_path: Path):
+def test_v3_columns_survive_later_migrations(tmp_path: Path):
     conn = connect(tmp_path / "lens.db")
     init_db(conn)
 
-    assert SCHEMA_VERSION == 3
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
+    # v3 只是起点：后续版本（v4 的 context_breakdown 等）不应回退掉 v3 的列
+    assert SCHEMA_VERSION >= 3
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
     assert "time_window" in _columns(conn, "pricing")
     assert "model_provider" in _columns(conn, "api_call_view")
     assert "occurred_at" in _columns(conn, "api_call_view")
@@ -56,7 +57,7 @@ def test_v2_pricing_rows_survive_migration(tmp_path: Path):
     assert len(rows) == 1
     assert rows[0]["time_window"] == "any"
     assert rows[0]["input_price_per_mtok"] == 0.3
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 
 
 def test_migration_is_idempotent(tmp_path: Path):
@@ -69,4 +70,4 @@ def test_migration_is_idempotent(tmp_path: Path):
     init_db(conn)
 
     assert "time_window" in _columns(conn, "pricing")
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION

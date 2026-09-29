@@ -12,17 +12,20 @@ import { useAsync } from '@/composables/useAsync'
 import { usePolling } from '@/composables/usePolling'
 import { useRange } from '@/composables/useRange'
 import { useTheme } from '@/composables/useTheme'
-import { formatInt, formatPercent, formatTokens } from '@/utils/format'
+import { formatCost, formatInt, formatPercent, formatTokens } from '@/utils/format'
 import { CHART_COLORS, axisTheme } from '@/utils/palette'
 
 const { days } = useRange()
 const { theme } = useTheme()
 const state = useAsync(() => api.context(days.value))
 const skillsState = useAsync(() => api.skills(days.value))
+const modelsState = useAsync(() => api.models(days.value))
 usePolling(state.reload)
 
 const data = computed(() => state.data.value ?? null)
 const skills = computed(() => skillsState.data.value?.skills ?? [])
+const modelRows = computed(() => modelsState.data.value?.rows ?? [])
+const modelCurrency = computed(() => modelsState.data.value?.currency ?? 'USD')
 
 const BLOCK_LABELS: Record<string, string> = {
   fixed_instructions: '固定指令',
@@ -60,6 +63,44 @@ const pieOption = computed<EChartsCoreOption>(() => {
           name: blockLabel(row.block),
           value: row.tokens,
         })),
+      },
+    ],
+  }
+})
+
+function modelKey(row: { model: string; effort: string }): string {
+  return `${row.model} / ${row.effort}`
+}
+
+const costOption = computed<EChartsCoreOption>(() => {
+  const palette = axisTheme(theme.value)
+  return {
+    grid: { left: 8, right: 24, top: 16, bottom: 4, containLabel: true },
+    tooltip: {
+      trigger: 'axis',
+      axis: 'y',
+      backgroundColor: palette.tooltipBg,
+      borderColor: palette.tooltipBorder,
+      textStyle: { color: palette.tooltipText, fontSize: 12 },
+    },
+    xAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: palette.axis } },
+      axisLabel: { color: palette.label },
+    },
+    yAxis: {
+      type: 'category',
+      data: modelRows.value.map(modelKey),
+      axisLine: { lineStyle: { color: palette.axis } },
+      axisLabel: { color: palette.label },
+    },
+    color: CHART_COLORS,
+    series: [
+      {
+        type: 'bar',
+        data: modelRows.value.map((row) => row.cost),
+        itemStyle: { borderRadius: [0, 6, 6, 0] },
       },
     ],
   }
@@ -148,6 +189,42 @@ const pieOption = computed<EChartsCoreOption>(() => {
         </el-table-column>
         <el-table-column label="工具">
           <template #default="{ row }">{{ row.tool_names.join('、') }}</template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <ChartCard title="模型与推理强度成本对比" subtitle="成本在查询时按价目表现算，改价后历史一致重算">
+      <EChart :option="costOption" label="按模型与推理强度的成本" />
+    </ChartCard>
+
+    <div class="al-card panel">
+      <header>
+        <h3>按模型与强度的明细</h3>
+        <span v-if="modelRows.some((row) => row.unpriced_calls > 0)" class="al-dim small">
+          有调用查不到价目表，金额不含它们
+        </span>
+      </header>
+      <el-table :data="modelRows" size="small" empty-text="这段时间没有调用数据">
+        <el-table-column label="模型 / 强度">
+          <template #default="{ row }">{{ modelKey(row) }}</template>
+        </el-table-column>
+        <el-table-column label="调用次数">
+          <template #default="{ row }">{{ formatInt(row.calls) }}</template>
+        </el-table-column>
+        <el-table-column label="轮次数">
+          <template #default="{ row }">{{ formatInt(row.turn_count) }}</template>
+        </el-table-column>
+        <el-table-column label="平均 input/次">
+          <template #default="{ row }">{{ formatTokens(row.avg_input_tokens) }}</template>
+        </el-table-column>
+        <el-table-column label="cache 命中率">
+          <template #default="{ row }">{{ formatPercent(row.cache_hit_rate) }}</template>
+        </el-table-column>
+        <el-table-column label="总成本">
+          <template #default="{ row }">{{ formatCost(row.cost, modelCurrency) }}</template>
+        </el-table-column>
+        <el-table-column label="平均成本/次">
+          <template #default="{ row }">{{ formatCost(row.avg_cost_per_call, modelCurrency) }}</template>
         </el-table-column>
       </el-table>
     </div>

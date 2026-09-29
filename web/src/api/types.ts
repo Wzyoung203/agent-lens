@@ -272,3 +272,27 @@ export interface SkillsResponse {
   skills: SkillStat[]
   total_loads: number
 }
+
+// P2.3 模型与推理强度对比（字段与后端 ModelComparisonResponse 逐字对齐）
+export interface ModelEffortStat {
+  model: string
+  effort: string
+  calls: number
+  turn_count: number
+  input_tokens: number
+  cached_input_tokens: number
+  output_tokens: number
+  cache_hit_rate: number
+  cost: number
+  avg_cost_per_call: number
+  avg_input_tokens: number
+  unpriced_calls: number
+  currency: string
+}
+
+export interface ModelComparisonResponse {
+  range: { start: string; end: string; days: number }
+  rows: ModelEffortStat[]
+  currency: string
+  total_cost: number
+}

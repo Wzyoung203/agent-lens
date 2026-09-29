@@ -7,9 +7,9 @@
 | | |
 |---|---|
 | 记录时间 | 2026-09-28 |
-| 状态 | **未修复**（按要求只记录，不动代码） |
+| 状态 | **已修复**（2026-09-29，提交 `16fdaf3`，分支 `fix-ki-1-nav-blank`） |
 | 报告人 | 用户（本地实机操作发现） |
-| 定位 | 已定位到根因（见下），修复方案已列但**未实施** |
+| 定位 | 根因见下；修复方式是给过渡补一个单根容器 |
 | 环境 | `docker compose up` 的 `web` 服务：生产构建 + FastAPI 同源托管，http://localhost:8000 |
 
 ### 现象
@@ -58,37 +58,50 @@
 - 不是数据问题：刷新后同一个页面渲染正常，接口全部 200。
 - 不是 chunk 加载失败：客户端跳转时新视图的 JS 早已随首屏加载，且网络面板干净。
 
-### 修复方案（未实施，按用户要求先不动）
+### 修复与验收（2026-09-29）
 
-三个方向，任选其一：
+三个候选方向里选了第 3 个的变体：**在 `App.vue` 里给路由组件补一层按 `route.path` 做 key
+的单根容器**，把它交给 `<Transition>`。只改一个文件，不动六个视图的布局，也保住了路由淡入。
 
-1. **去掉 `Transition` 包装**（最小改动，牺牲 180ms 的路由淡入）。
-2. **给每个视图一个单根容器**：在视图里包一层 `<div class="view">`，让 `Transition` 有元素可过渡。
-   注意要逐个视图改，且 `.view` 不能破坏现有 grid 布局（建议 `display: contents` 或不设样式）。
-3. 保留过渡但改用 `<RouterView>` 的 `v-slot` + `:key` 配合单根视图，或用
-   `<Transition>` 包 `<component :is="Component" :key="route.path" />` 并确保单根。
-
-修完的验收方式：用本次的 Playwright 探测脚本重跑，断言点击导航后
-`main.content` 至少有 1 个子元素、文本长度 > 0，且三个页面来回切换都成立。
-
-### 复现脚本
-
-```python
-from playwright.sync_api import sync_playwright
-
-BASE = "http://127.0.0.1:8000"
-PROBE = """() => {
-  const main = document.querySelector('main.content');
-  return { children: main ? main.children.length : -1,
-           textLen: main ? main.innerText.trim().length : -1,
-           html: main ? main.innerHTML.trim().slice(0, 60) : '' };
-}"""
-
-with sync_playwright() as p:
-    page = p.chromium.launch().new_page()
-    page.goto(BASE + "/", wait_until="networkidle")
-    print("hard load  ", page.evaluate(PROBE))
-    page.click('a[href="/projects"]')
-    page.wait_for_timeout(1500)
-    print("after click", page.evaluate(PROBE))   # 期望 children>=1，实际 0
+```vue
+<!-- web/src/App.vue -->
+<RouterView v-slot="{ Component, route }">
+  <Transition name="al-fade" mode="out-in">
+    <div :key="route.path" class="route-view">
+      <component :is="Component" />
+    </div>
+  </Transition>
+</RouterView>
 ```
+
+关键点是**容器必须带 key**：不带 key 时过渡前后是同一个元素，`mode="out-in"` 不会触发，
+淡入淡出会静默失效。`.route-view` 只设 `display: block`，对 `main.content` 布局零影响。
+
+验收证据（同一份探针，修复前 / 修复后各跑一次，真实采集 + 真实 `agent-lens serve` 同源托管）：
+
+| 步骤 | 修复前 `main.content` 子元素 | 修复后 |
+|---|---|---|
+| 硬加载 `/` | 3 | 1 |
+| 点击 项目 | **0** | 1 |
+| 点击 会话 | **0** | 1 |
+| 点击 工具调用 | **0** | 1 |
+| 点击 设置 | **0** | 1 |
+| 回到 总览 | **0** | 1 |
+| 再点 项目 | **0** | 1 |
+
+两次运行的 console error 与 page error 都是 0（这一点也和原报告一致——这个 bug 的迷惑性正在于
+**没有任何报错**）。修复前的 `innerHTML` 只剩 `<!---->`，与 2026-09-28 的 Playwright 观测逐字吻合。
+
+### 回归探针
+
+`scripts/nav-smoke.mjs` 把上面的验收固化下来，用 CDP 直连 Playwright 缓存里的
+Chrome for Testing，不需要给仓库装 JS 测试栈（仓库目前没有 vitest/jsdom，也不打算为一个冒烟
+测试引进来）：
+
+```bash
+uv run agent-lens serve --port 8000          # 或 docker compose up web
+BASE=http://127.0.0.1:8000 node scripts/nav-smoke.mjs
+```
+
+退出码非 0 就是「导航后内容区空白」这类回归。注意它**必须连真实服务**才能验证前端，
+所以需要在允许监听端口的机器上跑（本仓库的 agent 沙箱禁止 listen）。

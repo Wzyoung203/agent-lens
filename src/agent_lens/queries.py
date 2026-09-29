@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from .context import BLOCK_UNATTRIBUTED
 from .context import BLOCKS as BLOCK_ORDER
-from .pricing import Pricer
+from .pricing import Pricer, normalize_model
 from .storage import to_iso
 
 
@@ -392,6 +392,108 @@ def skill_stats(
         range=_range_info(start, end, days),
         skills=stats,
         total_loads=sum(item.loads for item in stats),
+    )
+
+
+class ModelEffortStat(BaseModel):
+    model: str
+    effort: str
+    calls: int
+    turn_count: int
+    input_tokens: int
+    cached_input_tokens: int
+    output_tokens: int
+    cache_hit_rate: float
+    cost: float
+    avg_cost_per_call: float
+    avg_input_tokens: float
+    unpriced_calls: int
+    currency: str
+
+
+class ModelComparisonResponse(BaseModel):
+    range: RangeInfo
+    rows: list[ModelEffortStat]
+    currency: str
+    total_cost: float
+
+
+def model_comparison(
+    conn: sqlite3.Connection,
+    *,
+    days: int = 30,
+    project: str | None = None,
+    now: datetime | None = None,
+) -> ModelComparisonResponse:
+    """按 (模型, 推理强度) 对比成本。成本现算，不落库（设计文档 6.4）。
+
+    模型名先过 `normalize_model`（`deepseek-v4-flash` → `deepseek-flash`），
+    否则历史调用会落到「查不到价目表」。
+    """
+    start, end = _range_bounds(now, days)
+    costed = _CostedRows(conn, now=now)
+    rows = _fetch_api_rows(conn, start, end, project=project)
+
+    buckets: dict[tuple[str, str], dict[str, object]] = {}
+    for row in rows:
+        model = normalize_model(row["model"]) or row["model"] or "未知模型"
+        effort = row["effort"] or "未知强度"
+        bucket = buckets.setdefault(
+            (model, effort),
+            {
+                "calls": 0,
+                "turns": set(),
+                "input": 0,
+                "cached": 0,
+                "output": 0,
+                "cost": 0.0,
+                "unpriced": 0,
+                "currency": costed.currency(row),
+            },
+        )
+        bucket["calls"] = int(bucket["calls"]) + 1
+        if row["session_id"] and row["turn_id"]:
+            turns = bucket["turns"]
+            assert isinstance(turns, set)
+            turns.add((row["session_id"], row["turn_id"]))
+        bucket["input"] = int(bucket["input"]) + _row_tokens(row, "input_tokens")
+        bucket["cached"] = int(bucket["cached"]) + _row_tokens(row, "cached_input_tokens")
+        bucket["output"] = int(bucket["output"]) + _row_tokens(row, "output_tokens")
+        amount, priced = costed.cost(row)
+        bucket["cost"] = float(bucket["cost"]) + amount
+        if not priced:
+            bucket["unpriced"] = int(bucket["unpriced"]) + 1
+
+    stats: list[ModelEffortStat] = []
+    for (model, effort), bucket in buckets.items():
+        calls = int(bucket["calls"])
+        input_tokens = int(bucket["input"])
+        turns = bucket["turns"]
+        assert isinstance(turns, set)
+        stats.append(
+            ModelEffortStat(
+                model=model,
+                effort=effort,
+                calls=calls,
+                turn_count=len(turns),
+                input_tokens=input_tokens,
+                cached_input_tokens=int(bucket["cached"]),
+                output_tokens=int(bucket["output"]),
+                cache_hit_rate=_cache_hit_rate(int(bucket["cached"]), input_tokens),
+                cost=float(bucket["cost"]),
+                avg_cost_per_call=(float(bucket["cost"]) / calls) if calls else 0.0,
+                avg_input_tokens=(input_tokens / calls) if calls else 0.0,
+                unpriced_calls=int(bucket["unpriced"]),
+                currency=str(bucket["currency"]),
+            )
+        )
+    stats.sort(key=lambda item: item.cost, reverse=True)
+    currency = stats[0].currency if stats else "USD"
+    return ModelComparisonResponse(
+        range=_range_info(start, end, days),
+        rows=stats,
+        currency=currency,
+        total_cost=sum(item.cost for item in stats),
     )
 
 

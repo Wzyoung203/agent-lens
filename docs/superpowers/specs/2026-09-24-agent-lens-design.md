@@ -328,6 +328,19 @@ UTC 01:00–04:00 与 06:00–10:00 的周一至周五，排除中国法定节�
 
 必须与 cache 命中率联合呈现：固定指令部分的 token 数字很大，但有 prompt cache 时实际成本远低于数字本身（实测某次调用 input 24,207，其中 19,200 命中缓存）。
 
+**正文不在库里，只能回原始 JSONL 算。** 数据库按约定只存长度与「文件 + ordinal」指针，所以分解器
+必须重放会话文件，而不是查 `api_calls` 表。这也是阶段 2 需要一个独立分析 pass 而不是纯 SQL 的原因。
+
+**字符到 token 的换算依据（2026-09-29 核对官方文档）。** 官方给的近似比率是
+**英文 1 字符 ≈ 0.3 token，中文 1 字符 ≈ 0.6 token**，并声明「以 API 返回的 usage 为准」。
+因此分解器按脚本类型（CJK / 非 CJK）分别累计字符数，先按官方比率得到各块的估算 token，
+再用该次调用真实的 `input_tokens` 做整体校准（各块按估算值占比摊派），使四块之和恒等于真实分母。
+字符事实（CJK 字符数、非 CJK 字符数）一并入库，将来换更精确的分词器不必重放原始文件。
+
+**推理内容属于「历史对话」块。** 官方 thinking mode 文档确认：请求带 `tools` 参数时，
+上一轮的 `reasoning_content` 会被回传并拼进上下文（Codex 正是这种请求）。所以 reasoning 文本
+要计入历史对话块，而不是丢弃——否则 input 分母会明显偏小。
+
 ### 6.8 Skill 命中（阶段 2）
 
 Skill 加载表现为一次工具调用，其参数指向 `SKILL.md` 路径。实测 329 次工具调用中有 29 次命中该模式。
@@ -466,7 +479,17 @@ retention:
    所以「首 token 延迟」在阶段 1 的数据里本来就有，不必等阶段 3。阶段 3 的 OTLP 接收器仍然要做，
    因为 TBT（token 间隔）与 API overhead 只存在于 OTLP 指标里。该结论来自 173 行真实样本，
    尚未验证 `time_to_first_token_ms` 的统计口径（是否含排队时间）。
-2. **deepseek 对 reasoning token 是否单独计价。** 从数据结构无法判断，需核对账单。若单独计价，`pricing` 表需增加第四档价格。
+2. **deepseek 对 reasoning token 是否单独计价。** **已结案（2026-09-29）：并入 output 价，不单独计价。**
+   依据三条：
+
+   1. 官方计价页只有三档（input cache hit / input cache miss / output），没有 reasoning 档，且原话是
+      「We will bill based on the total number of input and output tokens by the model」；
+   2. Token 用量页把 reasoning 描述为模型返回的一部分，并强调以 API 返回的 usage 为准；
+   3. 本机 897 条真实记录里 `reasoning_output_tokens <= output_tokens` **零违反**（reasoning 占 output 的 42.7%），
+      说明 output 已经是含 reasoning 的总量。
+
+   因此不需要第四档价格。`pricing` 表保留可空的 `reasoning_output_price_per_mtok` 列作为未来开关，
+   未填时按 output 价计算（`pricing.estimate_cost` 已如此实现），无需改 schema。
 3. **Langfuse 的 OTLP 端口是否接收 metrics 类型。** 若不接收，阶段 3 的延迟指标需由自建 OTLP 接收器直接写入 SQLite。验证方式：查阅 Langfuse 文档并向其端点发送测试数据。
 4. **Codex 对旧会话文件的依赖程度。** 决定是否开放「归档后删除原始文件」选项。验证方式：把一份旧文件移走，观察 Codex 的会话列表与恢复功能是否受影响。
 5. **Langfuse 免费版 unit 的精确计量口径。** 决定上报粒度。验证方式：查阅官方定价说明，并用少量数据实测消耗。

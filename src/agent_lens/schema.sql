@@ -223,3 +223,17 @@ CREATE TABLE IF NOT EXISTS context_breakdown (
 
 CREATE INDEX IF NOT EXISTS idx_context_breakdown_session
     ON context_breakdown(session_id);
+
+-- P2.2：skill 命中。一次工具调用加载一个 skill 记一行；正文不入库。
+-- 这里不存 session_id / turn_id：工具调用行本身不带这两个字段，硬猜会污染归属，
+-- 查询时用 (file_path, ordinal) 关联 tool_calls（它的主键正是这两列）即可。
+CREATE TABLE IF NOT EXISTS skill_hits (
+    file_path  TEXT NOT NULL,
+    ordinal    INTEGER NOT NULL,
+    skill_name TEXT NOT NULL,
+    skill_path TEXT NOT NULL,
+    tool_name  TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (file_path, ordinal, skill_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_skill_hits_name ON skill_hits(skill_name);

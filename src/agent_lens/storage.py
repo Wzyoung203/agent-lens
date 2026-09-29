@@ -22,8 +22,9 @@ from pydantic import BaseModel, Field
 
 from .context import BLOCK_UNATTRIBUTED, BLOCKS, CallBreakdown, attribute
 from .models import ParsedSession
+from .skills import SkillHit
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 DEFAULT_DB_PATH = Path.home() / ".agent-lens" / "agent-lens.db"
 DB_PATH_ENV = "AGENT_LENS_DB"
@@ -498,6 +499,28 @@ def write_context_breakdown(conn: sqlite3.Connection, rows: Sequence[CallBreakdo
             )
             written += len(payload)
     return written
+
+
+def write_skill_hits(conn: sqlite3.Connection, rows: Sequence[SkillHit]) -> int:
+    """写入 skill 命中。幂等：同 (file_path, ordinal, skill_name) 覆盖不新增。"""
+    if not rows:
+        return 0
+    payload = [
+        (row.file_path, row.ordinal, row.skill_name, row.skill_path, row.tool_name)
+        for row in rows
+    ]
+    with conn:
+        conn.executemany(
+            """
+            INSERT INTO skill_hits (file_path, ordinal, skill_name, skill_path, tool_name)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (file_path, ordinal, skill_name) DO UPDATE SET
+                skill_path = excluded.skill_path,
+                tool_name = excluded.tool_name
+            """,
+            payload,
+        )
+    return len(payload)
 
 
 def counts(conn: sqlite3.Connection) -> dict[str, int]:

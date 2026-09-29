@@ -19,8 +19,8 @@ def _sample() -> context.CallBreakdown:
 
 
 def test_schema_version_is_four(lens_db):
-    assert storage.SCHEMA_VERSION == 4
-    assert lens_db.execute("PRAGMA user_version").fetchone()[0] == 4
+    assert storage.SCHEMA_VERSION >= 4
+    assert lens_db.execute("PRAGMA user_version").fetchone()[0] == storage.SCHEMA_VERSION
 
 
 def test_write_context_breakdown_is_idempotent(lens_db):
@@ -55,4 +55,4 @@ def test_migrating_a_v3_database_adds_the_table(tmp_path):
         row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
     }
     assert "context_breakdown" in tables
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == storage.SCHEMA_VERSION

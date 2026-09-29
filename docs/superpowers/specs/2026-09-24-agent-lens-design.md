@@ -415,6 +415,10 @@ retention:
 
 手动映射是必需项而非可选项：`D:\codex\wzy_workstudio` 与 `D:\Study\codex_projects` 这类「元目录」下会开多个不同项目的活，仅靠仓库根推断会把它们混为一谈。
 
+> **实现进度（2026-09-29）**：只落地了第 1 级（手动映射）与第 3 级（未归类兜底）。
+> **第 2 级「从 cwd 向上查找 `.git`」尚未实现**，所以零配置时所有会话都落进「未归类」。
+> 已记为阶段 3 的 P3.4 待办（见 `plans/README.md`），含验收方式。
+
 ### 9.3 技术选型
 
 - 前端：Vue 3 + Vite + TypeScript + Element Plus（中文 locale）+ ECharts

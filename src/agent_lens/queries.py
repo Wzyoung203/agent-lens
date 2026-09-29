@@ -315,6 +315,86 @@ def context_overview(
     )
 
 
+class SkillStat(BaseModel):
+    skill_name: str
+    loads: int
+    session_count: int
+    tool_names: list[str] = Field(default_factory=list)
+    first_seen: str | None = None
+    last_seen: str | None = None
+
+
+class SkillsResponse(BaseModel):
+    range: RangeInfo
+    skills: list[SkillStat] = Field(default_factory=list)
+    total_loads: int = 0
+
+
+def skill_stats(
+    conn: sqlite3.Connection,
+    *,
+    days: int = 30,
+    project: str | None = None,
+    now: datetime | None = None,
+) -> SkillsResponse:
+    """skill 命中排行。
+
+    `skill_hits` 故意不存 session_id / turn_id（工具调用行本身没有这两个字段，
+    猜一个会污染归属），这里用 `(file_path, ordinal)` 关联 `tool_calls` 拿回来。
+    """
+    start, end = _range_bounds(now, days)
+    sql = """
+        SELECT h.skill_name AS skill_name,
+               h.tool_name  AS tool_name,
+               c.session_id AS session_id,
+               COALESCE(t.started_at, s.recorded_at, s.first_seen_at) AS occurred_at
+        FROM skill_hits h
+        LEFT JOIN tool_calls c ON c.file_path = h.file_path AND c.ordinal = h.ordinal
+        LEFT JOIN turns t ON t.session_id = c.session_id AND t.turn_id = c.turn_id
+        LEFT JOIN sessions s ON s.session_id = c.session_id
+        WHERE COALESCE(t.started_at, s.recorded_at, s.first_seen_at) >= ?
+          AND COALESCE(t.started_at, s.recorded_at, s.first_seen_at) < ?
+    """
+    params: list[object] = [to_iso(start), to_iso(end)]
+    if project:
+        sql += " AND s.project = ?"
+        params.append(project)
+
+    buckets: dict[str, dict[str, object]] = {}
+    for row in conn.execute(sql, params).fetchall():
+        bucket = buckets.setdefault(
+            row["skill_name"],
+            {"loads": 0, "sessions": set(), "tools": set(), "seen": []},
+        )
+        bucket["loads"] += 1
+        if row["session_id"]:
+            bucket["sessions"].add(row["session_id"])
+        if row["tool_name"]:
+            bucket["tools"].add(row["tool_name"])
+        if row["occurred_at"]:
+            bucket["seen"].append(row["occurred_at"])
+
+    stats: list[SkillStat] = []
+    for name, bucket in buckets.items():
+        seen = sorted(bucket["seen"])
+        stats.append(
+            SkillStat(
+                skill_name=name,
+                loads=int(bucket["loads"]),
+                session_count=len(bucket["sessions"]),
+                tool_names=sorted(bucket["tools"]),
+                first_seen=seen[0] if seen else None,
+                last_seen=seen[-1] if seen else None,
+            )
+        )
+    stats.sort(key=lambda item: (-item.loads, item.skill_name))
+    return SkillsResponse(
+        range=_range_info(start, end, days),
+        skills=stats,
+        total_loads=sum(item.loads for item in stats),
+    )
+
+
 def _utc_now() -> datetime:
     return datetime.now(UTC)
 

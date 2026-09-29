@@ -40,7 +40,7 @@ def test_analyze_writes_breakdown_rows(tmp_path, capsys):
     code = main(["analyze", "--db", str(db), "--sessions-dir", str(tmp_path / "sessions")])
     assert code == 0
     out = capsys.readouterr().out
-    assert "calls=1" in out and "blocks=5" in out
+    assert "calls=1" in out and "blocks=5" in out and "skills=0" in out
 
     conn = connect(db)
     init_db(conn)

@@ -18,9 +18,11 @@ import { CHART_COLORS, axisTheme } from '@/utils/palette'
 const { days } = useRange()
 const { theme } = useTheme()
 const state = useAsync(() => api.context(days.value))
+const skillsState = useAsync(() => api.skills(days.value))
 usePolling(state.reload)
 
 const data = computed(() => state.data.value ?? null)
+const skills = computed(() => skillsState.data.value?.skills ?? [])
 
 const BLOCK_LABELS: Record<string, string> = {
   fixed_instructions: '固定指令',
@@ -123,6 +125,29 @@ const pieOption = computed<EChartsCoreOption>(() => {
         </el-table-column>
         <el-table-column label="其他字符">
           <template #default="{ row }">{{ formatInt(row.other_chars) }}</template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <div class="al-card panel">
+      <header>
+        <h3>skill 命中</h3>
+        <span class="al-dim small">
+          共 {{ skillsState.data.value?.total_loads ?? 0 }} 次加载；来自工具调用参数里的 SKILL.md 路径
+        </span>
+      </header>
+      <el-table :data="skills" size="small" empty-text="这段时间没有识别到 skill 加载">
+        <el-table-column label="skill">
+          <template #default="{ row }">{{ row.skill_name }}</template>
+        </el-table-column>
+        <el-table-column label="加载次数">
+          <template #default="{ row }">{{ formatInt(row.loads) }}</template>
+        </el-table-column>
+        <el-table-column label="覆盖会话">
+          <template #default="{ row }">{{ formatInt(row.session_count) }}</template>
+        </el-table-column>
+        <el-table-column label="工具">
+          <template #default="{ row }">{{ row.tool_names.join('、') }}</template>
         </el-table-column>
       </el-table>
     </div>

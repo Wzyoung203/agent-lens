@@ -22,7 +22,7 @@ from .reporter import (
     ReportOutcome,
     ReportQueue,
 )
-from .storage import connect, counts, init_db, write_context_breakdown
+from .storage import connect, counts, init_db, write_context_breakdown, write_skill_hits
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -223,6 +223,7 @@ def _format_outcome(outcome: CollectOutcome, report: ReportOutcome | None) -> st
 def _run_analyze(args: argparse.Namespace) -> int:
     """重放会话文件并写入上下文分解。不联网、不改事实源（只读 JSONL）。"""
     from . import context as context_module
+    from . import skills as skills_module
 
     config, conn = _build_runtime(args)
     try:
@@ -232,13 +233,14 @@ def _run_analyze(args: argparse.Namespace) -> int:
             paths = sorted(Path(config.sessions_dir).rglob("*.jsonl"))
         calls = 0
         written = 0
+        skills_found = 0
         for path in paths:
             breakdowns = context_module.decompose_file(path)
-            if not breakdowns:
-                continue
-            calls += len(breakdowns)
-            written += write_context_breakdown(conn, breakdowns)
-        print(f"analyzed={len(paths)} calls={calls} blocks={written}")
+            if breakdowns:
+                calls += len(breakdowns)
+                written += write_context_breakdown(conn, breakdowns)
+            skills_found += write_skill_hits(conn, skills_module.find_skill_hits_in_file(path))
+        print(f"analyzed={len(paths)} calls={calls} blocks={written} skills={skills_found}")
         return 0
     finally:
         conn.close()

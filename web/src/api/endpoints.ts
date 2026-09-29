@@ -12,6 +12,7 @@ import type {
   ProjectStat,
   SessionDetail,
   SessionSummary,
+  SkillsResponse,
   ToolFailure,
   ToolsResponse,
   TurnDetail,
@@ -70,4 +71,7 @@ export const api = {
 
   context: (days: number, project?: string) =>
     http.get<ContextOverviewResponse>(`/context${query({ days, project })}`),
+
+  skills: (days: number, project?: string) =>
+    http.get<SkillsResponse>(`/skills${query({ days, project })}`),
 }

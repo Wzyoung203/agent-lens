@@ -4,6 +4,7 @@ import type {
   AppStatus,
   ContextOverviewResponse,
   HealthResponse,
+  ModelComparisonResponse,
   OverviewResponse,
   Page,
   PriceEntry,
@@ -74,4 +75,7 @@ export const api = {
 
   skills: (days: number, project?: string) =>
     http.get<SkillsResponse>(`/skills${query({ days, project })}`),
+
+  models: (days: number, project?: string) =>
+    http.get<ModelComparisonResponse>(`/models${query({ days, project })}`),
 }

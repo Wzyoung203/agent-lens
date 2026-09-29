@@ -17,6 +17,8 @@ from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel, Field
 
+from .context import BLOCK_UNATTRIBUTED
+from .context import BLOCKS as BLOCK_ORDER
 from .pricing import Pricer
 from .storage import to_iso
 
@@ -213,6 +215,104 @@ class Page[T](BaseModel):
     total: int = 0
     limit: int = 50
     offset: int = 0
+
+
+class ContextBlockStat(BaseModel):
+    """上下文分解里的一块（前四块有字符数，unattributed 是残差）。"""
+
+    block: str
+    tokens: float
+    share: float
+    cjk_chars: int = 0
+    other_chars: int = 0
+    estimated_tokens: float = 0.0
+
+
+class ContextTrendPoint(BaseModel):
+    day: str
+    block: str
+    tokens: float
+
+
+class ContextOverviewResponse(BaseModel):
+    range: RangeInfo
+    blocks: list[ContextBlockStat]
+    trend: list[ContextTrendPoint] = Field(default_factory=list)
+    input_tokens: int
+    analyzed_calls: int
+    total_calls: int
+    coverage: float
+    cache_hit_rate: float
+
+
+def context_overview(
+    conn: sqlite3.Connection,
+    *,
+    days: int = 30,
+    project: str | None = None,
+    now: datetime | None = None,
+) -> ContextOverviewResponse:
+    """上下文构成：按块聚合，并曝光「有多少调用还没分析」的覆盖率。
+
+    分解行自身没有时间列，所以先用 `api_call_view` 取时间窗内的白名单
+    （`(file_path, ordinal)`），再用白名单过滤分解行——这样时间范围与项目过滤
+    都与其它页面口径一致。
+    """
+    start, end = _range_bounds(now, days)
+    api_rows = _fetch_api_rows(conn, start, end, project=project)
+    total_calls = len(api_rows)
+    allowed = {(row["file_path"], row["ordinal"]) for row in api_rows}
+    input_tokens = sum(_row_tokens(row, "input_tokens") for row in api_rows)
+    cached = sum(_row_tokens(row, "cached_input_tokens") for row in api_rows)
+
+    totals: dict[str, float] = {}
+    chars: dict[str, list[int]] = {}
+    estimates: dict[str, float] = {}
+    analyzed = 0
+    if allowed:
+        rows = conn.execute(
+            """
+            SELECT file_path, ordinal, block, cjk_chars, other_chars,
+                   estimated_tokens, attributed_tokens
+            FROM context_breakdown
+            """
+        ).fetchall()
+        seen: set[tuple[str, int]] = set()
+        for row in rows:
+            key = (row["file_path"], row["ordinal"])
+            if key not in allowed:
+                continue
+            seen.add(key)
+            block = row["block"]
+            totals[block] = totals.get(block, 0.0) + (row["attributed_tokens"] or 0.0)
+            slot = chars.setdefault(block, [0, 0])
+            slot[0] += row["cjk_chars"] or 0
+            slot[1] += row["other_chars"] or 0
+            estimates[block] = estimates.get(block, 0.0) + (row["estimated_tokens"] or 0.0)
+        analyzed = len(seen)
+
+    attributed_total = sum(totals.values())
+    blocks = [
+        ContextBlockStat(
+            block=name,
+            tokens=totals.get(name, 0.0),
+            share=(totals.get(name, 0.0) / attributed_total) if attributed_total else 0.0,
+            cjk_chars=chars.get(name, [0, 0])[0],
+            other_chars=chars.get(name, [0, 0])[1],
+            estimated_tokens=estimates.get(name, 0.0),
+        )
+        for name in (*BLOCK_ORDER, BLOCK_UNATTRIBUTED)
+    ]
+    return ContextOverviewResponse(
+        range=_range_info(start, end, days),
+        blocks=blocks,
+        trend=[],
+        input_tokens=input_tokens,
+        analyzed_calls=analyzed,
+        total_calls=total_calls,
+        coverage=(analyzed / total_calls) if total_calls else 0.0,
+        cache_hit_rate=_cache_hit_rate(cached, input_tokens),
+    )
 
 
 def _utc_now() -> datetime:

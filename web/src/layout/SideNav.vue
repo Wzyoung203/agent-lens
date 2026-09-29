@@ -7,6 +7,7 @@ import {
   DataAnalysis,
   Histogram,
   Notebook,
+  PieChart,
   Setting,
 } from '@element-plus/icons-vue'
 
@@ -19,6 +20,7 @@ const items = [
   { path: '/projects', label: '项目', icon: Histogram },
   { path: '/sessions', label: '会话', icon: Notebook },
   { path: '/tools', label: '工具调用', icon: Coin },
+  { path: '/context', label: '上下文成本', icon: PieChart },
   { path: '/settings', label: '设置', icon: Setting },
 ]
 

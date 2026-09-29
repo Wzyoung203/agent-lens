@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from agent_lens.storage import DB_PATH_ENV, connect, init_db, resolve_db_path
+from agent_lens.storage import DB_PATH_ENV, SCHEMA_VERSION, connect, init_db, resolve_db_path
 
 
 def test_schema_is_idempotent_and_versioned(tmp_path: Path):
@@ -26,7 +26,7 @@ def test_schema_is_idempotent_and_versioned(tmp_path: Path):
         "project_paths",
         "ingest_state",
     } <= tables
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
     assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
 
 

@@ -22,7 +22,7 @@ from .reporter import (
     ReportOutcome,
     ReportQueue,
 )
-from .storage import connect, counts, init_db
+from .storage import connect, counts, init_db, write_context_breakdown
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -56,6 +56,12 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--db", default=None)
     serve.add_argument("--web-dir", default=None, help="前端构建产物目录，默认 web/dist")
 
+    analyze = sub.add_parser("analyze", help="重放会话文件，计算上下文构成")
+    analyze.add_argument("--config", default=None)
+    analyze.add_argument("--db", default=None)
+    analyze.add_argument("--sessions-dir", default=None)
+    analyze.add_argument("--file", action="append", default=None, help="只分析指定文件，可重复")
+
     return parser
 
 
@@ -73,6 +79,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_backfill(args)
     if args.command == "serve":
         return _run_serve(args)
+    if args.command == "analyze":
+        return _run_analyze(args)
     parser.error(f"未知命令：{args.command}")
     return 2
 
@@ -210,6 +218,30 @@ def _format_outcome(outcome: CollectOutcome, report: ReportOutcome | None) -> st
     if report is not None:
         text += f" sent={report.sent} failed={report.failed} pending={report.pending}"
     return text
+
+
+def _run_analyze(args: argparse.Namespace) -> int:
+    """重放会话文件并写入上下文分解。不联网、不改事实源（只读 JSONL）。"""
+    from . import context as context_module
+
+    config, conn = _build_runtime(args)
+    try:
+        if args.file:
+            paths = [Path(item) for item in args.file]
+        else:
+            paths = sorted(Path(config.sessions_dir).rglob("*.jsonl"))
+        calls = 0
+        written = 0
+        for path in paths:
+            breakdowns = context_module.decompose_file(path)
+            if not breakdowns:
+                continue
+            calls += len(breakdowns)
+            written += write_context_breakdown(conn, breakdowns)
+        print(f"analyzed={len(paths)} calls={calls} blocks={written}")
+        return 0
+    finally:
+        conn.close()
 
 
 def _run_serve(args: argparse.Namespace) -> int:

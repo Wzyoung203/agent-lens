@@ -31,6 +31,7 @@ const STEPS = [
   ['点击 项目', '/projects'],
   ['点击 会话', '/sessions'],
   ['点击 工具调用', '/tools'],
+  ['点击 上下文成本', '/context'],
   ['点击 设置', '/settings'],
   ['回到 总览', '/'],
   ['再点 项目', '/projects'],

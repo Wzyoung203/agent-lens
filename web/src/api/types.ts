@@ -229,3 +229,30 @@ export interface AppStatus {
   langfuse_enabled: boolean
   sessions_dir: string
 }
+
+// P2.1 上下文成本分解（字段与后端 ContextOverviewResponse 逐字对齐）
+export interface ContextBlockStat {
+  block: string
+  tokens: number
+  share: number
+  cjk_chars: number
+  other_chars: number
+  estimated_tokens: number
+}
+
+export interface ContextTrendPoint {
+  day: string
+  block: string
+  tokens: number
+}
+
+export interface ContextOverviewResponse {
+  range: { start: string; end: string; days: number }
+  blocks: ContextBlockStat[]
+  trend: ContextTrendPoint[]
+  input_tokens: number
+  analyzed_calls: number
+  total_calls: number
+  coverage: number
+  cache_hit_rate: number
+}

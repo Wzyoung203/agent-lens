@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from ..storage import resolve_db_path
-from .routes import context, overview, projects, sessions, settings, tools
+from .routes import context, overview, projects, sessions, settings, skills, tools
 
 API_PREFIX = "/api"
 
@@ -18,7 +18,7 @@ API_PREFIX = "/api"
 def create_app(db_path: str | Path | None = None, *, static_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="agent-lens", version="0.1.0")
     app.state.db_path = resolve_db_path(db_path)
-    for module in (overview, projects, sessions, tools, settings, context):
+    for module in (overview, projects, sessions, tools, settings, context, skills):
         app.include_router(module.router)
 
     @app.exception_handler(sqlite3.Error)

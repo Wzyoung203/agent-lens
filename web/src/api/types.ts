@@ -256,3 +256,19 @@ export interface ContextOverviewResponse {
   coverage: number
   cache_hit_rate: number
 }
+
+// P2.2 skill 命中（字段与后端 SkillsResponse 逐字对齐）
+export interface SkillStat {
+  skill_name: string
+  loads: number
+  session_count: number
+  tool_names: string[]
+  first_seen: string | null
+  last_seen: string | null
+}
+
+export interface SkillsResponse {
+  range: { start: string; end: string; days: number }
+  skills: SkillStat[]
+  total_loads: number
+}

@@ -36,10 +36,11 @@
 | `/Users/wzy` | 2 | 存在，但不是仓库 | 未归类（主目录不作为仓库根候选） |
 | `/Users/wzy/projects/godot_projects` | 1 | 存在，元目录，本身不是仓库 | 未归类 |
 | `/Users/wzy/projects/godot_projects/DSR_function_demo` | 1 | 存在，git 根 | `DSR_function_demo` |
+| `/Users/wzy/projects/godot_projects/eros` | 1 | 存在，git 根 | `eros` |
 | `/Users/wzy/projects/agent-lens` | 1 | 存在，git 根 | `agent-lens` |
-| `/Users/wzy/projects/godot_projects` | 1 | 同上元目录 | 未归类 |
 
-**验收预期**：12 个会话里 2 个变成真实项目，其余 10 个留在「未归类」。
+**验收预期**：12 个会话里 3 个变成真实项目（`agent-lens` / `eros` / `DSR_function_demo`），
+其余 9 个留在「未归类」。
 `/Users/wzy/agent-lens` 这类陈旧路径按本轮决定（方案 A）不做别名兜底，由设置页手动映射解决。
 
 ## 关键裁决（本轮控制器做出，落 ledger）
@@ -278,6 +279,15 @@ BASE=http://127.0.0.1:8000 node scripts/nav-smoke.mjs
 ```
 Expected: `/api/projects` 返回 ≥ 2 个项目（`agent-lens`、`DSR_function_demo`）且会话总数仍为 12；
 导航探针全过、0 browser error。
+
+**验收结果（2026-09-30，实际执行）**：
+
+- `POST /api/settings/projects/refresh` → `{"sessions_reassigned": 3}`（比先期预期的 2 多一个
+  `eros`——先期那张表把 `~/projects/godot_projects` 这个元目录写了两遍，漏了它的子仓库 `eros`，
+  已更正）；再调用一次返回 0，说明重算幂等。
+- `/api/projects`：`agent-lens` 1 个会话、`eros` 1 个、`DSR_function_demo` 1 个、「未归类」9 个，
+  合计仍是 12 个会话——零配置下不再全空，且没有丢会话。
+- `scripts/nav-smoke.mjs`：8 步导航全过，0 browser error。
 
 ---
 

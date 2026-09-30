@@ -425,6 +425,11 @@ retention:
 > 容器部署中，工作目录必须在 `docker-compose.yml` 的 `PROJECTS_ROOT` 白名单里以「宿主路径 == 容器路径」
 > 挂进来，推断才看得到（见 README「数据与配置」一节）。
 
+> **展示币种（2026-09-30 补充）**：6.4 的「成本不落库」让币种也能在查询时决定。
+> 价目表按官方价原样存（deepseek 是美元），`[display] currency / usd_to_cny`
+> （默认 `CNY` / `7.1`）决定算钱时折成哪种货币，换算发生在 `pricing._lookup_price()`，
+> 下游所有金额自动一致。汇率是静态配置，不接实时汇率 API。
+
 ### 9.3 技术选型
 
 - 前端：Vue 3 + Vite + TypeScript + Element Plus（中文 locale）+ ECharts

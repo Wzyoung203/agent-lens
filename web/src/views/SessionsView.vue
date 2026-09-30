@@ -93,7 +93,7 @@ const total = computed(() => state.data.value?.total ?? 0)
         </el-table-column>
         <el-table-column label="花费" width="110" align="right">
           <template #default="{ row }">
-            <span class="al-num">{{ formatCost(row.cost) }}</span>
+            <span class="al-num">{{ formatCost(row.cost, row.currency) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="最后调用" width="150">

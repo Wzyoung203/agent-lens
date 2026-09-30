@@ -132,7 +132,9 @@ async function refreshProjects(): Promise<void> {
     <section class="al-card panel">
       <header>
         <h3>价目表</h3>
-        <span class="al-dim small">deepseek 按高峰 / 空闲两档计价；空闲价是高峰价的一半</span>
+        <span class="al-dim small">
+          存的是官方美元单价；界面按 [display] 配置折算成人民币显示
+        </span>
         <div class="spacer" />
         <el-button size="small" :icon="Plus" @click="openPriceDialog()">新增</el-button>
       </header>

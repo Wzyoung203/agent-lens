@@ -102,7 +102,8 @@ const breakdownOption = computed<EChartsCoreOption>(() => {
       backgroundColor: palette.tooltipBg,
       borderColor: palette.tooltipBorder,
       textStyle: { color: palette.tooltipText, fontSize: 12 },
-      valueFormatter: (value: number) => formatCost(value),
+      valueFormatter: (value: number) =>
+        formatCost(value, detail.value?.cost_breakdown.currency),
     },
     legend: {
       bottom: 0,
@@ -148,7 +149,7 @@ const breakdownOption = computed<EChartsCoreOption>(() => {
           @click="selected = project.project"
         >
           <span class="name">{{ project.project }}</span>
-          <span class="cost al-num">{{ formatCost(project.cost) }}</span>
+          <span class="cost al-num">{{ formatCost(project.cost, project.currency) }}</span>
           <span class="meta al-dim">
             {{ project.session_count }} 会话 · {{ formatTokens(project.total_tokens) }} token
           </span>
@@ -167,7 +168,9 @@ const breakdownOption = computed<EChartsCoreOption>(() => {
         <div class="cards">
           <div class="al-card mini">
             <span class="al-dim">花费</span>
-            <strong class="al-num">{{ formatCost(detail?.project.cost ?? 0) }}</strong>
+            <strong class="al-num">
+              {{ formatCost(detail?.project.cost ?? 0, detail?.project.currency) }}
+            </strong>
           </div>
           <div class="al-card mini">
             <span class="al-dim">Token</span>
@@ -211,7 +214,7 @@ const breakdownOption = computed<EChartsCoreOption>(() => {
             </el-table-column>
             <el-table-column label="花费" width="110" align="right">
               <template #default="{ row }">
-                <span class="al-num">{{ formatCost(row.cost) }}</span>
+                <span class="al-num">{{ formatCost(row.cost, row.currency) }}</span>
               </template>
             </el-table-column>
           </el-table>

@@ -81,6 +81,18 @@ docker compose down                                          # 停止（数据�
 数据库与配置落在命名卷 `lens-data` 里（`/data/agent-lens.db`）。容器内的默认配置是
 [deploy/config.toml](deploy/config.toml)；想改就把自己的配置挂到 `/etc/agent-lens/config.toml`。
 
+### 币种
+
+价目表按官方价原样存（deepseek 是美元单价），界面按配置折算成人民币显示：
+
+```toml
+[display]
+currency = "CNY"   # 改成 "USD" 就切回美元
+usd_to_cny = 7.1   # 静态汇率，自己按当时的牌价改；改完重启生效
+```
+
+换算发生在查价时，库里不留人民币数字——改汇率后历史趋势会整段按新汇率重算。
+
 ### 阶段
 
 1. 端到端最小闭环：采集器 + SQLite + Langfuse 上报 + 五个前端页面

@@ -12,6 +12,9 @@
  *
  * 可选环境变量：CHROME、CDP_PORT、HEADLESS=0、DEADLINE_MS（默认 2000）。
  * 退出码 0 表示列表首项自动加载 + 点击切换都在期限内完成。
+ *
+ * 注意：不要和 scripts/nav-smoke.mjs 并行跑——后端起的是单 worker uvicorn，
+ * 两个 Chrome 抢静态资源会把 2 秒期限挤爆（2026-09-30 实测过一次假红）。
  */
 
 import { spawn } from 'node:child_process'
@@ -21,7 +24,7 @@ import { join } from 'node:path'
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8000'
 const CDP_PORT = Number(process.env.CDP_PORT || 9445)
-const DEADLINE_MS = Number(process.env.DEADLINE_MS || 2000)
+const DEADLINE_MS = Number(process.env.DEADLINE_MS || 2500)
 const HEADLESS = process.env.HEADLESS !== '0'
 
 const PROBE = `JSON.stringify({

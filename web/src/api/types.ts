@@ -37,6 +37,7 @@ export interface DailyPoint {
 export interface ProjectStat {
   project: string
   cost: number
+  currency: string
   total_tokens: number
   input_tokens: number
   output_tokens: number
@@ -75,6 +76,7 @@ export interface SessionSummary {
   tool_call_count: number
   total_tokens: number
   cost: number
+  currency: string
   cache_hit_rate: number
   first_api_at: string | null
   last_api_at: string | null

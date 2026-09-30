@@ -75,7 +75,7 @@ def test_model_comparison_groups_by_model_and_effort(seeded_db):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest tests/test_queries_models.py -v`
+Run: `UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest tests/test_queries_models.py -v`
 Expected: FAIL，`AttributeError: module 'agent_lens.queries' has no attribute 'model_comparison'`
 
 - [ ] **Step 3: Write minimal implementation**
@@ -171,7 +171,7 @@ def model_comparison(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest tests/test_queries_models.py -v`
+Run: `UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest tests/test_queries_models.py -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -210,7 +210,7 @@ def test_models_endpoint_returns_rows(api_client):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest tests/test_api_endpoints.py -k models -v`
+Run: `UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest tests/test_api_endpoints.py -k models -v`
 Expected: FAIL，404（路由不存在）
 
 - [ ] **Step 3: Write minimal implementation**
@@ -244,7 +244,7 @@ def models(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest tests/test_api_endpoints.py -v`；再跑全量 + ruff。
+Run: `UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest tests/test_api_endpoints.py -v`；再跑全量 + ruff。
 
 - [ ] **Step 5: Commit**
 

@@ -150,7 +150,7 @@ def test_refresh_recomputes_inferred_projects(lens_db, tmp_path):
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest tests/test_storage_projects.py -v`
+Run: `UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest tests/test_storage_projects.py -v`
 Expected: 新增用例 FAIL（`AttributeError: ... has no attribute '_home_dir'` 或返回「未归类」而非仓库名）。
 
 - [ ] **Step 3: 写最小实现**
@@ -199,7 +199,7 @@ def _git_root(cwd: Path, *, home: Path | None = None) -> Path | None:
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest tests/test_storage_projects.py tests/test_storage_write.py tests/test_api_endpoints.py -v`
+Run: `UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest tests/test_storage_projects.py tests/test_storage_write.py tests/test_api_endpoints.py -v`
 Expected: 全绿。既有用例（`/Users/someone/...` 这类不存在的路径）不受影响。
 
 - [ ] **Step 5: 提交**

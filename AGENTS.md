@@ -119,8 +119,8 @@ scripts/agent-guard.sh release          # 本轮结束解除
 - **进度写在 ledger 里**，不要只放在对话记忆里：`.superpowers/sdd/<plan-basename>/progress.md`
   （第一行必须是 `# SDD ledger — plan: <plan 文件路径>`）。所有 ruling 都要落在这份文件里。
 - **验证命令**（沙箱内必须带 `UV_CACHE_DIR`，否则 uv 写不了 `~/.cache`）：
-  - `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest -q`
-  - `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run ruff check src tests`
+  - `UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest -q`
+  - `UV_CACHE_DIR="$PWD/.uv-cache" uv run ruff check src tests`
   - `cd web && npm run build`
 - **`ruff format --check` 在基线上本来就不干净**，不作为门禁；只要求 `ruff check` 通过。
 - **事实源只读**：任何代码都不得写入、重命名或删除 `~/.codex/sessions` 下的文件。

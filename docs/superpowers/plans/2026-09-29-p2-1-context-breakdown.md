@@ -155,7 +155,7 @@ def test_decompose_file_reads_from_disk(tmp_path):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest tests/test_context_decompose.py -v`
+Run: `UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest tests/test_context_decompose.py -v`
 Expected: FAIL，`ModuleNotFoundError: No module named 'agent_lens.context'`
 
 - [ ] **Step 3: Write minimal implementation**
@@ -342,13 +342,13 @@ def decompose_file(path: Path) -> list[CallBreakdown]:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest tests/test_context_decompose.py -v`
+Run: `UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest tests/test_context_decompose.py -v`
 Expected: PASS（6 passed）
 
 - [ ] **Step 5: 真实数据 sanity 检查（不是自动化测试，但必须做并贴进 ledger）**
 
 ```bash
-UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run python -c "
+UV_CACHE_DIR="$PWD/.uv-cache" uv run python -c "
 from pathlib import Path
 from agent_lens import context
 files = sorted(Path.home().glob('.codex/sessions/**/*.jsonl'))
@@ -453,7 +453,7 @@ def test_migrating_a_v3_database_adds_the_table(tmp_path):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest tests/test_storage_context.py -v`
+Run: `UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest tests/test_storage_context.py -v`
 Expected: FAIL，`AttributeError: module 'agent_lens.storage' has no attribute 'write_context_breakdown'`
 
 - [ ] **Step 3: Write minimal implementation**
@@ -534,8 +534,8 @@ def write_context_breakdown(conn: sqlite3.Connection, rows: Sequence[CallBreakdo
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest tests/test_storage_context.py tests/test_schema_v3.py -v`
-然后跑全量确认无回归：`UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest -q`
+Run: `UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest tests/test_storage_context.py tests/test_schema_v3.py -v`
+然后跑全量确认无回归：`UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest -q`
 
 - [ ] **Step 5: Commit**
 
@@ -616,7 +616,7 @@ def test_analyze_single_file(tmp_path, capsys):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest tests/test_cli_analyze.py -v`
+Run: `UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest tests/test_cli_analyze.py -v`
 Expected: FAIL，argparse 报 `invalid choice: 'analyze'`
 
 - [ ] **Step 3: Write minimal implementation**
@@ -662,14 +662,14 @@ def _run_analyze(args: argparse.Namespace) -> int:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest tests/test_cli_analyze.py -v`
+Run: `UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest tests/test_cli_analyze.py -v`
 Expected: PASS（3 passed）
 
 - [ ] **Step 5: 对真实数据跑一次并把输出贴进 ledger**
 
 ```bash
-UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run agent-lens analyze --db /private/tmp/p21.db
-UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run python -c "
+UV_CACHE_DIR="$PWD/.uv-cache" uv run agent-lens analyze --db /private/tmp/p21.db
+UV_CACHE_DIR="$PWD/.uv-cache" uv run python -c "
 import sqlite3
 conn = sqlite3.connect('/private/tmp/p21.db'); conn.row_factory = sqlite3.Row
 rows = conn.execute('SELECT block, SUM(attributed_tokens) AS t FROM context_breakdown GROUP BY block ORDER BY t DESC').fetchall()
@@ -771,7 +771,7 @@ def test_context_endpoint_returns_blocks(lens_db, tmp_path):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest tests/test_queries_context.py -v`
+Run: `UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest tests/test_queries_context.py -v`
 Expected: FAIL，`AttributeError: module 'agent_lens.queries' has no attribute 'context_overview'`
 
 - [ ] **Step 3: Write minimal implementation**
@@ -903,7 +903,7 @@ def context(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `UV_CACHE_DIR=/Users/wzy/agent-lens/.uv-cache uv run pytest tests/test_queries_context.py tests/test_api_endpoints.py -v`
+Run: `UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest tests/test_queries_context.py tests/test_api_endpoints.py -v`
 然后 `uv run pytest -q` 与 `uv run ruff check src tests` 都要干净。
 
 - [ ] **Step 5: Commit**

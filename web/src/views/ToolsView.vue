@@ -22,7 +22,7 @@ import { CHART_COLORS, axisTheme } from '@/utils/palette'
 
 const { days } = useRange()
 const { theme } = useTheme()
-const state = useAsync(() => api.tools(days.value))
+const state = useAsync(() => api.tools(days.value), [days])
 usePolling(state.reload)
 
 const stats = computed(() => state.data.value?.stats ?? [])

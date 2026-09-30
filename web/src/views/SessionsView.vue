@@ -15,13 +15,15 @@ const search = ref('')
 const page = ref(0)
 const pageSize = 25
 
-const state = useAsync(() =>
-  api.sessions(days.value, {
-    project: project.value || undefined,
-    search: search.value || undefined,
-    limit: pageSize,
-    offset: page.value * pageSize,
-  }),
+const state = useAsync(
+  () =>
+    api.sessions(days.value, {
+      project: project.value || undefined,
+      search: search.value || undefined,
+      limit: pageSize,
+      offset: page.value * pageSize,
+    }),
+  [days],
 )
 usePolling(state.reload)
 

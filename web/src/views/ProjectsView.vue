@@ -18,11 +18,12 @@ const { days } = useRange()
 const { theme } = useTheme()
 const selected = ref<string | null>(null)
 
-const listState = useAsync(() => api.projects(days.value))
+const listState = useAsync(() => api.projects(days.value), [days])
+// 选中项与时间范围都是取数输入：变化时立刻重取，不等 10 秒轮询。
 const detailState = useAsync(async () => {
   if (!selected.value) return null
   return api.projectDetail(selected.value, days.value)
-})
+}, [selected, days])
 
 usePolling(async () => {
   await listState.reload()
@@ -43,7 +44,12 @@ watch(
   { immediate: true },
 )
 
-const detail = computed(() => detailState.data.value)
+const detail = computed(() => {
+  const data = detailState.data.value
+  // 切换项目时旧数据先不展示：否则会出现「高亮的是 A，数字还是 B」。
+  if (!data || data.project.project !== selected.value) return null
+  return data
+})
 
 const trendOption = computed<EChartsCoreOption>(() => {
   const palette = axisTheme(theme.value)

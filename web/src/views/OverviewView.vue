@@ -17,7 +17,7 @@ import { CHART_COLORS, axisTheme } from '@/utils/palette'
 
 const { days } = useRange()
 const { theme } = useTheme()
-const state = useAsync(() => api.overview(days.value))
+const state = useAsync(() => api.overview(days.value), [days])
 usePolling(state.reload)
 
 const cards = computed(() => state.data.value?.cards ?? null)

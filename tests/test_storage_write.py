@@ -14,12 +14,14 @@ from agent_lens.models import (
 from agent_lens.storage import UNCLASSIFIED_PROJECT, counts, write_parsed_session
 
 
-def minimal_session(file_path: str = "f.jsonl") -> ParsedSession:
+def minimal_session(
+    file_path: str = "f.jsonl", cwd: str = "/Users/someone/project"
+) -> ParsedSession:
     return ParsedSession(
         session_id="s1",
         file_path=file_path,
         cli_version="0.157.1",
-        cwd="/Users/someone/project",
+        cwd=cwd,
         model_provider="deepseek",
         base_instructions_chars=17766,
         recorded_at=to_utc("2026-09-27T10:00:00Z"),

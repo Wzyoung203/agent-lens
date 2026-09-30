@@ -73,6 +73,11 @@ docker compose down                                          # 停止（数据�
 并托管前端。宿主的 `~/.codex/sessions` 以**只读**方式挂进容器，容器不会改动 Codex 的原始日志；
 换目录用 `CODEX_SESSIONS_DIR=/path/to/sessions docker compose up -d`，换端口用 `AGENT_LENS_PORT`。
 
+另外会把项目目录白名单 `~/projects` 以只读方式挂进容器，且**宿主路径与容器路径相同**——
+这样日志里记录的 `cwd` 在容器内可以直接命中，项目归属的「向上找 `.git`」推断不需要路径改写。
+把工作目录放进 `~/projects`（或改名后用 `PROJECTS_ROOT=/path/to/workspaces`）即可让容器看到它们；
+没挂进去的目录在容器里不存在，那些会话会落在「未归类」。
+
 数据库与配置落在命名卷 `lens-data` 里（`/data/agent-lens.db`）。容器内的默认配置是
 [deploy/config.toml](deploy/config.toml)；想改就把自己的配置挂到 `/etc/agent-lens/config.toml`。
 

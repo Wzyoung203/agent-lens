@@ -635,7 +635,10 @@ def resolve_project(
     *,
     fallback: str = UNCLASSIFIED_PROJECT,
 ) -> str:
-    """按最长前缀匹配决定项目归属，命不中返回 fallback。
+    """决定会话的项目归属（设计文档 9.2 节的三级规则）。
+
+    优先级：手动映射（最长前缀）> 自动推断（`cwd` 向上找 `.git`，仓库根名即项目名）
+    > fallback（未归类）。
 
     用 substr 比较而不是 LIKE，避免 cwd 里的 % 和 _ 被当成通配符。
     v1 大小写敏感；Windows 路径归一化由 P1.3 采集器负责。
@@ -652,7 +655,39 @@ def resolve_project(
         """,
         (cwd,),
     ).fetchone()
-    return row["project_name"] if row else fallback
+    if row:
+        return row["project_name"]
+    root = _git_root(Path(cwd))
+    return root.name if root else fallback
+
+
+def _home_dir() -> Path:
+    """用户主目录。单独包一层是为了测试能替换掉它。"""
+    return Path.home()
+
+
+def _git_root(cwd: Path, *, home: Path | None = None) -> Path | None:
+    """从 cwd 向上找 `.git`，返回仓库根；没有仓库返回 None。
+
+    规则（P3.4 计划的三条裁决，见 `.superpowers/sdd/2026-09-30-p3-4-project-attribution/`）：
+      * 只认磁盘上真实存在的路径：目录已改名/删除的陈旧 cwd 一律返回 None，
+        不做 basename 兜底（那会引入「同名目录谁赢」的新语义）；
+      * 向上查到文件系统根为止；
+      * 用户主目录不作为仓库根候选——`~/.git`（dotfiles 仓库）不该吞掉主目录下
+        所有没有自己仓库的会话（`~/projects` 这种元目录首当其冲）。
+    `.git` 是目录（普通克隆）或文件（worktree / submodule）都算仓库根。
+    """
+    if not cwd.is_dir():
+        return None
+    stop = home or _home_dir()
+    current = cwd
+    while True:
+        if current != stop and (current / ".git").exists():
+            return current
+        parent = current.parent
+        if current == stop or parent == current:
+            return None
+        current = parent
 
 
 def refresh_session_projects(
@@ -660,15 +695,19 @@ def refresh_session_projects(
     *,
     now: datetime | None = None,
 ) -> int:
-    """按当前手动映射重算所有会话的项目归属，返回被改动的会话数。
+    """按当前规则重算所有会话的项目归属，返回被改动的会话数。
 
     设置页改完映射后调用（设计文档 9.2 节的「一键指派」）。
     """
     now_iso = to_iso(now or utc_now())
     rows = conn.execute("SELECT session_id, cwd, project FROM sessions").fetchall()
     changed: list[tuple[str, str, str]] = []
+    inferred: dict[str | None, str] = {}
     for row in rows:
-        project = resolve_project(conn, row["cwd"])
+        # 自动推断要走文件系统，按 cwd 记忆化，避免同一目录被反复查找。
+        if row["cwd"] not in inferred:
+            inferred[row["cwd"]] = resolve_project(conn, row["cwd"])
+        project = inferred[row["cwd"]]
         if project != row["project"]:
             changed.append((project, now_iso, row["session_id"]))
     if changed:

@@ -2,6 +2,15 @@
 #   collector —— 常驻采集，把 ~/.codex/sessions 的增量写进 /data/agent-lens.db
 #   web       —— 只读查询 + 托管前端，暴露 8000 端口
 # 事实源以只读方式挂进来，容器永远不会修改 Codex 的原始日志。
+#
+# 项目目录白名单（PROJECTS_ROOT，默认 ~/projects）以只读方式挂进两个服务，
+# 且**宿主路径与容器路径完全相同**：日志里记录的 cwd 在容器里可以直接命中，
+# 项目归属的「向上找 .git」推断不需要「宿主根 -> 容器根」的路径改写。
+#   collector 要它，是为了采集时就能定归属；
+#   web 要它，是因为设置页的「重算归属」接口跑在 web 进程里。
+# 换目录用 PROJECTS_ROOT=/path/to/workspaces docker compose up -d。
+
+x-projects-volume: &projects-volume "${PROJECTS_ROOT:-${HOME}/projects}:${PROJECTS_ROOT:-${HOME}/projects}:ro"
 
 services:
   collector:
@@ -11,6 +20,7 @@ services:
     restart: unless-stopped
     volumes:
       - "${CODEX_SESSIONS_DIR:-${HOME}/.codex/sessions}:/codex/sessions:ro"
+      - *projects-volume
       - lens-data:/data
 
   web:
@@ -24,6 +34,7 @@ services:
       - "${AGENT_LENS_PORT:-8000}:8000"
     volumes:
       - "${CODEX_SESSIONS_DIR:-${HOME}/.codex/sessions}:/codex/sessions:ro"
+      - *projects-volume
       - lens-data:/data
 
   # 开发用：Vite dev server（带 HMR），源码从宿主挂进去，改了立刻生效。

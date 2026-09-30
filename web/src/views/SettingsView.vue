@@ -187,7 +187,9 @@ async function refreshProjects(): Promise<void> {
     <section class="al-card panel">
       <header>
         <h3>项目映射</h3>
-        <span class="al-dim small">路径前缀匹配，优先级最高</span>
+        <span class="al-dim small">
+          归属优先级：手动映射（路径前缀）&gt; 自动推断（工作目录向上找 .git）&gt; 未归类
+        </span>
         <div class="spacer" />
         <el-button size="small" :icon="Refresh" @click="refreshProjects">重算归属</el-button>
         <el-button size="small" :icon="Plus" @click="mappingDialog = true">新增</el-button>
@@ -197,7 +199,7 @@ async function refreshProjects(): Promise<void> {
         :loading="mappingState.loading.value && !mappingState.data.value"
         :error="mappingState.error.value"
         :empty="!mappingState.data.value?.length"
-        empty-text="还没有映射，全部会话会归到「未归类」"
+        empty-text="还没有手动映射；有 .git 的工作目录会自动归属，其余归入「未归类」"
         @retry="mappingState.reload"
       >
         <el-table :data="mappingState.data.value ?? []" size="small" style="width: 100%">

@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS turns (
     started_at     TEXT,
     completed_at   TEXT,
     duration_ms    INTEGER,
+    time_to_first_token_ms INTEGER,
     aborted_reason TEXT,
     updated_at     TEXT NOT NULL,
     PRIMARY KEY (session_id, turn_id)

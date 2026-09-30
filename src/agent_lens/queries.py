@@ -802,6 +802,109 @@ def list_projects(
     return overview(conn, days=days, now=now).projects
 
 
+class LatencyStat(BaseModel):
+    """传输效率的分布摘要（P3.1）。
+
+    `tbt_avg_ms` 是**派生估算**：`(duration_ms - time_to_first_token_ms) / output_tokens`，
+    不是真实的逐 token 间隔——日志里没有 token 级时间戳，这个口径只能近似。
+    """
+
+    samples: int = 0
+    ttft_avg_ms: float = 0.0
+    ttft_p50_ms: float = 0.0
+    ttft_p90_ms: float = 0.0
+    ttft_p95_ms: float = 0.0
+    turn_avg_ms: float = 0.0
+    turn_p90_ms: float = 0.0
+    tbt_avg_ms: float = 0.0
+
+
+class LatencyPoint(BaseModel):
+    day: str
+    samples: int = 0
+    ttft_avg_ms: float = 0.0
+    ttft_p90_ms: float = 0.0
+
+
+class LatencyResponse(BaseModel):
+    range: RangeInfo
+    overall: LatencyStat = Field(default_factory=LatencyStat)
+    daily: list[LatencyPoint] = Field(default_factory=list)
+
+
+def _mean(values: list[float]) -> float:
+    return sum(values) / len(values) if values else 0.0
+
+
+def latency_stats(
+    conn: sqlite3.Connection,
+    *,
+    days: int = 30,
+    project: str | None = None,
+    now: datetime | None = None,
+) -> LatencyResponse:
+    """按 turns 汇总 TTFT / 轮次时长 / TBT 估算（设计文档 9.1「传输效率」）。"""
+    start, end = _range_bounds(now, days)
+    params: list[str] = [to_iso(start), to_iso(end)]
+    sql = """
+        SELECT t.session_id, t.turn_id, t.started_at, t.duration_ms, t.time_to_first_token_ms,
+               (
+                   SELECT COALESCE(SUM(a.output_tokens), 0)
+                   FROM api_calls a
+                   WHERE a.session_id = t.session_id AND a.turn_id = t.turn_id
+               ) AS output_tokens
+        FROM turns t
+        JOIN sessions s ON s.session_id = t.session_id
+        WHERE t.started_at IS NOT NULL AND t.started_at >= ? AND t.started_at < ?
+    """
+    if project is not None:
+        sql += " AND s.project = ?"
+        params.append(project)
+    sql += " ORDER BY t.started_at"
+    rows = conn.execute(sql, params).fetchall()
+
+    ttfts = [float(row["time_to_first_token_ms"]) for row in rows if row["time_to_first_token_ms"]]
+    durations = [float(row["duration_ms"]) for row in rows if row["duration_ms"]]
+    tbts: list[float] = []
+    for row in rows:
+        ttft = row["time_to_first_token_ms"]
+        duration = row["duration_ms"]
+        output = row["output_tokens"] or 0
+        if not ttft or not duration or output <= 0:
+            continue
+        span = duration - ttft
+        if span > 0:
+            tbts.append(span / output)
+
+    per_day: dict[str, list[float]] = {}
+    for row in rows:
+        if not row["time_to_first_token_ms"]:
+            continue
+        day = str(row["started_at"])[:10]
+        per_day.setdefault(day, []).append(float(row["time_to_first_token_ms"]))
+
+    overall = LatencyStat(
+        samples=len(ttfts),
+        ttft_avg_ms=_mean(ttfts),
+        ttft_p50_ms=_percentile(ttfts, 0.5) or 0.0,
+        ttft_p90_ms=_percentile(ttfts, 0.9) or 0.0,
+        ttft_p95_ms=_percentile(ttfts, 0.95) or 0.0,
+        turn_avg_ms=_mean(durations),
+        turn_p90_ms=_percentile(durations, 0.9) or 0.0,
+        tbt_avg_ms=_mean(tbts),
+    )
+    daily = [
+        LatencyPoint(
+            day=day,
+            samples=len(values),
+            ttft_avg_ms=_mean(values),
+            ttft_p90_ms=_percentile(values, 0.9) or 0.0,
+        )
+        for day, values in sorted(per_day.items())
+    ]
+    return LatencyResponse(range=_range_info(start, end, days), overall=overall, daily=daily)
+
+
 def project_detail(
     conn: sqlite3.Connection, name: str, *, days: int = 30, now: datetime | None = None
 ) -> ProjectDetail:

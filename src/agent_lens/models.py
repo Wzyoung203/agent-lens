@@ -166,6 +166,8 @@ class TurnRecord(BaseModel):
     started_at: datetime | None = None
     completed_at: datetime | None = None
     duration_ms: int | None = None
+    # 首 token 延迟：只有 task_complete 事件带（实测 173/173 非空）。
+    time_to_first_token_ms: int | None = None
     aborted_reason: str | None = None
 
 

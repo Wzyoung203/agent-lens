@@ -306,10 +306,12 @@ UTC 01:00–04:00 与 06:00–10:00 的周一至周五，排除中国法定节�
 | 工具失败率 | 退出码非 0、`patch_apply_end.success = false` | JSONL | 1 |
 | 轮次耗时 | `task_complete.duration_ms` | JSONL | 1 |
 | 中断率 | `turn_aborted` 事件占比 | JSONL | 1 |
-| TTFT | 首字节延迟 | 仅 OTLP | 3 |
-| TBT | token 间隔 | 仅 OTLP | 3 |
+| TTFT | 首字节延迟 | `task_complete.time_to_first_token_ms`（见 13.1 实测） | 3（2026-09-30 落地） |
+| TBT | token 间隔 | **精确值仅 OTLP**；日志只能给估算（见下） | 3 |
 
-阶段 1 能覆盖八项中的六项，延迟类两项必须等阶段 3。
+阶段 1 能覆盖八项中的六项，延迟类两项原计划等阶段 3。**2026-09-30 修正**：TTFT 其实已经在
+JSONL 里（13.1 第 1 条实测 173 行样本），已落地到 `turns.time_to_first_token_ms`；
+TBT 用 `(duration_ms - ttft) / output_tokens` 给出**估算值**，真实逐 token 间隔仍只有 OTLP 能给。
 
 ### 6.6 工具失败折算成 token 成本
 
@@ -494,6 +496,13 @@ retention:
    所以「首 token 延迟」在阶段 1 的数据里本来就有，不必等阶段 3。阶段 3 的 OTLP 接收器仍然要做，
    因为 TBT（token 间隔）与 API overhead 只存在于 OTLP 指标里。该结论来自 173 行真实样本，
    尚未验证 `time_to_first_token_ms` 的统计口径（是否含排队时间）。
+
+   **落地补充（2026-09-30，P3.1）**：TTFT 已按这条结论落地（schema v6，`turns.time_to_first_token_ms`，
+   重放 36 个文件得 173 个样本，与上面那条实测完全吻合：p50 1240ms / p90 1843ms）。
+   **修正一处口径**：TBT 不一定要靠 OTLP 才能「有数」——用
+   `(duration_ms - time_to_first_token_ms) / output_tokens` 可以给出**估算值**（实测 ≈9.9ms/token），
+   本项目的 `/api/latency` 提供的正是这个估算口径。真实逐 token 间隔与 API overhead 仍然只有 OTLP 能给，
+   所以 OTLP 接收器从「P3.1 的前置」降级为「将来要精确延迟时的可选项」。
 2. **deepseek 对 reasoning token 是否单独计价。** **已结案（2026-09-29）：并入 output 价，不单独计价。**
    依据三条：
 

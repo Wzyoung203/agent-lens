@@ -73,7 +73,7 @@ const breakdownRows = computed(() => {
     <div class="cards">
       <div class="al-card mini">
         <span class="al-dim">花费</span>
-        <strong class="al-num">{{ formatCost(session?.cost ?? 0) }}</strong>
+        <strong class="al-num">{{ formatCost(session?.cost ?? 0, session?.currency) }}</strong>
       </div>
       <div class="al-card mini">
         <span class="al-dim">Token</span>
@@ -126,7 +126,7 @@ const breakdownRows = computed(() => {
                     </el-table-column>
                     <el-table-column label="花费" width="100" align="right">
                       <template #default="{ row: call }">
-                        <span class="al-num">{{ formatCost(call.cost) }}</span>
+                        <span class="al-num">{{ formatCost(call.cost, session?.currency) }}</span>
                       </template>
                     </el-table-column>
                   </el-table>
@@ -193,7 +193,7 @@ const breakdownRows = computed(() => {
           </el-table-column>
           <el-table-column label="花费" width="110" align="right">
             <template #default="{ row }">
-              <span class="al-num">{{ formatCost(row.cost) }}</span>
+              <span class="al-num">{{ formatCost(row.cost, breakdown?.currency) }}</span>
             </template>
           </el-table-column>
         </el-table>

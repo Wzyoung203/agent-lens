@@ -170,9 +170,9 @@ const durationOption = computed<EChartsCoreOption>(() => {
         </p>
         <strong class="al-num big">{{ formatCost(failureCost?.total ?? 0, failureCost?.currency) }}</strong>
         <div class="breakdown">
-          <div><span class="al-dim">未命中输入</span><span class="al-num">{{ formatCost(failureCost?.uncached_input ?? 0) }}</span></div>
-          <div><span class="al-dim">命中缓存</span><span class="al-num">{{ formatCost(failureCost?.cached_input ?? 0) }}</span></div>
-          <div><span class="al-dim">输出</span><span class="al-num">{{ formatCost(failureCost?.output ?? 0) }}</span></div>
+          <div><span class="al-dim">未命中输入</span><span class="al-num">{{ formatCost(failureCost?.uncached_input ?? 0, failureCost?.currency) }}</span></div>
+          <div><span class="al-dim">命中缓存</span><span class="al-num">{{ formatCost(failureCost?.cached_input ?? 0, failureCost?.currency) }}</span></div>
+          <div><span class="al-dim">输出</span><span class="al-num">{{ formatCost(failureCost?.output ?? 0, failureCost?.currency) }}</span></div>
         </div>
 
         <h3 class="mt">跨项目失败率</h3>

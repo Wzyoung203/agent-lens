@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from .context import BLOCK_UNATTRIBUTED
 from .context import BLOCKS as BLOCK_ORDER
-from .pricing import Pricer, normalize_model
+from .pricing import Pricer, display_config, normalize_model
 from .storage import to_iso
 
 
@@ -59,6 +59,7 @@ class DailyPoint(BaseModel):
 class ProjectStat(BaseModel):
     project: str
     cost: float = 0.0
+    currency: str = ""
     total_tokens: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
@@ -97,6 +98,7 @@ class SessionSummary(BaseModel):
     tool_call_count: int = 0
     total_tokens: int = 0
     cost: float = 0.0
+    currency: str = ""
     cache_hit_rate: float = 0.0
     first_api_at: str | None = None
     last_api_at: str | None = None
@@ -488,7 +490,7 @@ def model_comparison(
             )
         )
     stats.sort(key=lambda item: item.cost, reverse=True)
-    currency = stats[0].currency if stats else "USD"
+    currency = stats[0].currency if stats else display_config().currency
     return ModelComparisonResponse(
         range=_range_info(start, end, days),
         rows=stats,
@@ -603,6 +605,8 @@ def _breakdown(rows: list[sqlite3.Row], costed: _CostedRows) -> CostBreakdown:
             )
             breakdown.currency = price.currency
         breakdown.total += value
+    if not breakdown.currency:
+        breakdown.currency = display_config().currency
     return breakdown
 
 
@@ -739,6 +743,9 @@ def overview(
     cards.tool_call_count = len(tool_rows)
     failures = sum(1 for row in tool_rows if _is_failure(row))
     cards.tool_failure_rate = failures / len(tool_rows) if tool_rows else 0.0
+    if not cards.currency:
+        # 一行价目表都没命中（空库或全部未定价）也要说清楚币种，别让前端猜。
+        cards.currency = display_config().currency
     return OverviewResponse(
         range=_range_info(start, end, days),
         cards=cards,
@@ -760,6 +767,9 @@ def _project_stats(
         stat.input_tokens += _row_tokens(row, "input_tokens")
         stat.output_tokens += _row_tokens(row, "output_tokens")
         stat.api_call_count += 1
+        currency = costed.currency(row)
+        if currency:
+            stat.currency = currency
         cached_by_project[name] = cached_by_project.get(name, 0) + _row_tokens(
             row, "cached_input_tokens"
         )
@@ -834,6 +844,7 @@ def _session_summaries(
             recorded_at=meta["recorded_at"] if meta else None,
             turn_count=len(_turn_ids(conn, session_id)),
             tool_call_count=tool_counts.get(session_id, 0),
+            currency=costed.currency(group[0]),
         )
         for row in group:
             value, _ = costed.cost(row)

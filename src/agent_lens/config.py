@@ -50,11 +50,23 @@ class RedactionConfig(BaseModel):
     summary_chars: int = 200
 
 
+class DisplayConfig(BaseModel):
+    """展示币种与汇率（换算只影响显示，不改价目表里的数字）。
+
+    价目表按官方价存（deepseek 是美元），这里决定「算钱时折成哪种货币」。
+    汇率是静态假设值，不接实时汇率 API；改完重启生效。
+    """
+
+    currency: Literal["USD", "CNY"] = "CNY"
+    usd_to_cny: float = 7.1
+
+
 class AppConfig(BaseModel):
     sessions: SessionsConfig = Field(default_factory=SessionsConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
     langfuse: LangfuseConfig = Field(default_factory=LangfuseConfig)
     redaction: RedactionConfig = Field(default_factory=RedactionConfig)
+    display: DisplayConfig = Field(default_factory=DisplayConfig)
 
     @property
     def sessions_dir(self) -> Path:

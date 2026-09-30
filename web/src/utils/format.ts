@@ -3,8 +3,11 @@
 /**
  * 金额自适应精度：deepseek 单价是「每百万 token 零点几美元」，
  * 个人月账单常在 0.001–5 美元之间，直接 toFixed(2) 会把真实花费显示成 $0.00。
+ *
+ * 币种一律以后端 payload 里的 currency 为准（后端按 [display] 配置折算）；
+ * 默认值只是兜底，正常调用点都应该把 currency 传进来。
  */
-export function formatCost(value: number, currency = 'USD'): string {
+export function formatCost(value: number, currency = 'CNY'): string {
   const symbol = currency === 'CNY' ? '¥' : '$'
   const amount = Math.abs(value)
   if (amount === 0) return `${symbol}0`

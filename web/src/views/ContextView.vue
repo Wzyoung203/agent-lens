@@ -25,7 +25,7 @@ usePolling(state.reload)
 const data = computed(() => state.data.value ?? null)
 const skills = computed(() => skillsState.data.value?.skills ?? [])
 const modelRows = computed(() => modelsState.data.value?.rows ?? [])
-const modelCurrency = computed(() => modelsState.data.value?.currency ?? 'USD')
+const modelCurrency = computed(() => modelsState.data.value?.currency ?? 'CNY')
 
 const BLOCK_LABELS: Record<string, string> = {
   fixed_instructions: '固定指令',

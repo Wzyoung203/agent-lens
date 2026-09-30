@@ -103,7 +103,7 @@ const projectOption = computed<EChartsCoreOption>(() => {
       backgroundColor: palette.tooltipBg,
       borderColor: palette.tooltipBorder,
       textStyle: { color: palette.tooltipText, fontSize: 12 },
-      valueFormatter: (value: number) => formatCost(value),
+      valueFormatter: (value: number) => formatCost(value, cards.value?.currency),
     },
     xAxis: {
       type: 'value',

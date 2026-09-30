@@ -16,6 +16,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from .config import DisplayConfig, load_config
 from .models import TokenUsage
 
 PRICE_SCALE = 1_000_000
@@ -29,6 +30,47 @@ PEAK_RANGES: tuple[tuple[int, int], ...] = ((1, 4), (6, 10))
 # 官方遗留模型名到规范名的映射。实测日志里出现过 deepseek-v4-flash，
 # 实际按 Flash 价计价；查价前先归一化，否则会落到「查不到价目表」。
 MODEL_ALIASES: dict[str, str] = {"deepseek-v4-flash": "deepseek-flash"}
+
+# 展示币种只在进程启动后读一次配置：改汇率要重启（与 db_path 等配置一致）。
+_display_cache: DisplayConfig | None = None
+
+
+def display_config() -> DisplayConfig:
+    """当前的展示币种与汇率。"""
+    global _display_cache
+    if _display_cache is None:
+        _display_cache = load_config().display
+    return _display_cache
+
+
+def set_display_config(value: DisplayConfig | None) -> None:
+    """覆盖展示币种（测试与显式注入用）；传 None 表示恢复「重新读配置」。"""
+    global _display_cache
+    _display_cache = value
+
+
+def convert_entry(entry: PriceEntry, display: DisplayConfig) -> PriceEntry:
+    """把一条价目表折算成展示币种。
+
+    只在「价目表是美元、展示币种是人民币」时换算——已经是人民币的行不再乘一次，
+    展示币种是美元时保持原样。换算的是单价本身，所以下游所有金额（构成、按天、
+    按项目、按模型）自动一致，库里一个数字都不用改。
+    """
+    if display.currency == entry.currency:
+        return entry
+    if display.currency != "CNY" or entry.currency != "USD":
+        return entry
+    rate = display.usd_to_cny
+    reasoning = entry.reasoning_output_price_per_mtok
+    return entry.model_copy(
+        update={
+            "currency": "CNY",
+            "input_price_per_mtok": entry.input_price_per_mtok * rate,
+            "cached_input_price_per_mtok": entry.cached_input_price_per_mtok * rate,
+            "output_price_per_mtok": entry.output_price_per_mtok * rate,
+            "reasoning_output_price_per_mtok": None if reasoning is None else reasoning * rate,
+        }
+    )
 
 
 def is_peak(at: datetime) -> bool:
@@ -222,7 +264,7 @@ def _lookup_price(
             (provider, name, win, to_iso(bound)),
         ).fetchone()
         if row is not None:
-            return _row_to_entry(row)
+            return convert_entry(_row_to_entry(row), display_config())
     return None
 
 

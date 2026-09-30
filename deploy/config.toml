@@ -17,3 +17,9 @@ batch_size = 50
 [redaction]
 enabled = true
 summary_chars = 200
+
+[display]
+# 价目表按官方美元价存（见 README「价目表」），这里只决定「算钱时折成哪种货币显示」。
+# 换算发生在查询时，库里不留人民币数字：改汇率后历史数据立刻按新汇率重算。
+currency = "CNY"
+usd_to_cny = 7.1

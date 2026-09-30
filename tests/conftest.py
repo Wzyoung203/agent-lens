@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from agent_lens import pricing
+from agent_lens.config import DisplayConfig
 from agent_lens.models import (
     ApiCallRecord,
     ParsedSession,
@@ -17,6 +19,17 @@ from agent_lens.pricing import PriceEntry, upsert_price
 from agent_lens.storage import assign_project, connect, init_db, write_parsed_session
 
 SEEDED_NOW = datetime(2026, 9, 25, 12, 0, tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def usd_display():
+    """成本算式用例一律按美元断言（它们测的是算术，不是币种）。
+
+    币种换算本身在 tests/test_pricing_currency.py 里用显式配置测。
+    """
+    pricing.set_display_config(DisplayConfig(currency="USD"))
+    yield
+    pricing.set_display_config(None)
 
 
 class MutableNow:

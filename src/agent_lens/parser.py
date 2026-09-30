@@ -252,6 +252,7 @@ def _dispatch_event(payload: dict, file_path: str, ordinal: int) -> LineParseRes
                 started_at=epoch_to_utc(payload.get("started_at")),
                 completed_at=epoch_to_utc(payload.get("completed_at")),
                 duration_ms=payload.get("duration_ms"),
+                time_to_first_token_ms=payload.get("time_to_first_token_ms"),
             )
         )
 
@@ -313,6 +314,9 @@ def _upsert_turn(parsed: ParsedSession, turn: TurnRecord) -> None:
             existing.started_at = turn.started_at or existing.started_at
             existing.completed_at = turn.completed_at or existing.completed_at
             existing.duration_ms = turn.duration_ms or existing.duration_ms
+            existing.time_to_first_token_ms = (
+                turn.time_to_first_token_ms or existing.time_to_first_token_ms
+            )
             existing.aborted_reason = turn.aborted_reason or existing.aborted_reason
             return
     parsed.turns.append(turn)

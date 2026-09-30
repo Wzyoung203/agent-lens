@@ -24,7 +24,7 @@ from .context import BLOCK_UNATTRIBUTED, BLOCKS, CallBreakdown, attribute
 from .models import ParsedSession
 from .skills import SkillHit
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 DEFAULT_DB_PATH = Path.home() / ".agent-lens" / "agent-lens.db"
 DB_PATH_ENV = "AGENT_LENS_DB"
@@ -125,9 +125,10 @@ def _pricing_columns(conn: sqlite3.Connection) -> set[str]:
 def migrate(conn: sqlite3.Connection) -> None:
     """把旧库原地升级到当前 schema 版本，可重复执行。
 
-    目前只有一次迁移：v2 -> v3，pricing 主键补 time_window 维度。
+    迁移一：v2 -> v3，pricing 主键补 time_window 维度。
       * 旧库缺 time_window 时重建 pricing 表，历史行一律回填 'any'
       * api_call_view 的定义在 v3 有变化，先删掉，交给 schema.sql 重建
+    迁移二：v5 -> v6，turns 补 time_to_first_token_ms（P3.1 的延迟指标）。
     """
     columns = _pricing_columns(conn)
     if columns and "time_window" not in columns:
@@ -151,6 +152,12 @@ def migrate(conn: sqlite3.Connection) -> None:
             conn.execute("DROP TABLE pricing_v2")
     # 视图无法用 IF NOT EXISTS 改定义，先删后由 schema.sql 重建
     conn.execute("DROP VIEW IF EXISTS api_call_view")
+    turn_columns = {
+        row[1] for row in conn.execute("PRAGMA table_info(turns)").fetchall()
+    }
+    if turn_columns and "time_to_first_token_ms" not in turn_columns:
+        with conn:
+            conn.execute("ALTER TABLE turns ADD COLUMN time_to_first_token_ms INTEGER")
 
 
 class WriteResult(BaseModel):
@@ -229,6 +236,7 @@ def _upsert_turns(conn: sqlite3.Connection, parsed: ParsedSession, now_iso: str)
         row["started_at"] = to_iso(turn.started_at) if turn.started_at else None
         row["completed_at"] = to_iso(turn.completed_at) if turn.completed_at else None
         row["duration_ms"] = turn.duration_ms
+        row["time_to_first_token_ms"] = turn.time_to_first_token_ms
         row["aborted_reason"] = turn.aborted_reason
 
     for turn_id, row in merged.items():
@@ -236,8 +244,9 @@ def _upsert_turns(conn: sqlite3.Connection, parsed: ParsedSession, now_iso: str)
             """
             INSERT INTO turns (
                 session_id, turn_id, cwd, model, effort,
-                started_at, completed_at, duration_ms, aborted_reason, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                started_at, completed_at, duration_ms, time_to_first_token_ms,
+                aborted_reason, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(session_id, turn_id) DO UPDATE SET
                 cwd = COALESCE(excluded.cwd, turns.cwd),
                 model = COALESCE(excluded.model, turns.model),
@@ -245,6 +254,9 @@ def _upsert_turns(conn: sqlite3.Connection, parsed: ParsedSession, now_iso: str)
                 started_at = COALESCE(excluded.started_at, turns.started_at),
                 completed_at = COALESCE(excluded.completed_at, turns.completed_at),
                 duration_ms = COALESCE(excluded.duration_ms, turns.duration_ms),
+                time_to_first_token_ms = COALESCE(
+                    excluded.time_to_first_token_ms, turns.time_to_first_token_ms
+                ),
                 aborted_reason = COALESCE(excluded.aborted_reason, turns.aborted_reason),
                 updated_at = excluded.updated_at
             """,
@@ -257,6 +269,7 @@ def _upsert_turns(conn: sqlite3.Connection, parsed: ParsedSession, now_iso: str)
                 row.get("started_at"),
                 row.get("completed_at"),
                 row.get("duration_ms"),
+                row.get("time_to_first_token_ms"),
                 row.get("aborted_reason"),
                 now_iso,
             ),
